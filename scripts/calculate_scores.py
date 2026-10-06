@@ -6,7 +6,7 @@ import requests
 # Configuration & Environment Setup
 # -------------------------------------------------------------------
 GH_TOKEN = os.getenv("GH_PAT")
-ORG_NAME = os.getenv("ORGANIZATION_NAME")  # Account/Org where YOUR Project v2 board resides
+GITHUB_USER = os.getenv("ORGANIZATION_NAME")  # Your personal GitHub username
 PROJECT_NUMBER = int(os.getenv("PROJECT_NUMBER", "1"))
 FIELD_NAME = os.getenv("CUSTOM_FIELD_NAME", "Priority Score")
 
@@ -43,25 +43,12 @@ def run_graphql(query, variables=None):
     return res_data["data"]
 
 # -------------------------------------------------------------------
-# 1. GitHub Project v2 Field Discovery
+# 1. Personal GitHub Project v2 Field Discovery
 # -------------------------------------------------------------------
 def get_project_and_field_ids():
     query = """
-    query($org: String!, $number: Int!) {
-      organization(login: $org) {
-        projectV2(number: $number) {
-          id
-          fields(first: 50) {
-            nodes {
-              ... on ProjectV2Field {
-                id
-                name
-              }
-            }
-          }
-        }
-      }
-      user(login: $org) {
+    query($user: String!, $number: Int!) {
+      user(login: $user) {
         projectV2(number: $number) {
           id
           fields(first: 50) {
@@ -76,12 +63,15 @@ def get_project_and_field_ids():
       }
     }
     """
-    data = run_graphql(query, {"org": ORG_NAME, "number": PROJECT_NUMBER})
+    data = run_graphql(query, {"user": GITHUB_USER, "number": PROJECT_NUMBER})
     
-    # Resolves whether ORGANIZATION_NAME is an Org or a Personal User Account
-    project = (data.get("organization") or {}).get("projectV2") or (data.get("user") or {}).get("projectV2")
+    user_data = data.get("user")
+    if not user_data:
+        raise ValueError(f"GitHub user '{GITHUB_USER}' not found.")
+        
+    project = user_data.get("projectV2")
     if not project:
-        raise ValueError(f"Project #{PROJECT_NUMBER} not found under account/org '{ORG_NAME}'")
+        raise ValueError(f"Project #{PROJECT_NUMBER} not found under personal account '{GITHUB_USER}'")
         
     project_id = project["id"]
     field_id = None
@@ -166,7 +156,7 @@ def compute_priority_score(issue):
 # 4. Write Item & Score into your GitHub Projects v2 Board
 # -------------------------------------------------------------------
 def sync_to_github_project(project_id, field_id, issue_node_id, score):
-    # Step A: Import External Issue Node into your Project Board
+    # Step A: Import External Issue Node into your Personal Project Board
     add_item_mutation = """
     mutation($projectId: ID!, $contentId: ID!) {
       addProjectV2ItemById(input: {projectId: $projectId, contentId: $contentId}) {
@@ -203,7 +193,7 @@ def sync_to_github_project(project_id, field_id, issue_node_id, score):
 # Execution Entry Point
 # -------------------------------------------------------------------
 def main():
-    print(f"Connecting to GitHub Projects (v2) for '{ORG_NAME}'...")
+    print(f"Connecting to personal GitHub Projects (v2) for user '{GITHUB_USER}'...")
     project_id, field_id = get_project_and_field_ids()
 
     for target in TARGET_REPOS:
