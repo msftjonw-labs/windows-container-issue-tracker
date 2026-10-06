@@ -1,6 +1,5 @@
 import os
 import sys
-import time
 import requests
 
 # -------------------------------------------------------------------
@@ -30,40 +29,18 @@ LABEL_WEIGHTS = {
 GH_GRAPHQL_URL = "https://api.github.com/graphql"
 headers = {"Authorization": f"Bearer {GH_TOKEN}"}
 
-MAX_GRAPHQL_RETRIES = 3
-
 def run_graphql(query, variables=None):
-    for attempt in range(MAX_GRAPHQL_RETRIES + 1):
-        try:
-            response = requests.post(
-                GH_GRAPHQL_URL,
-                json={"query": query, "variables": variables},
-                headers=headers
-            )
-        except requests.RequestException:
-            if attempt == MAX_GRAPHQL_RETRIES:
-                raise
-            time.sleep(2 ** attempt)
-            continue
-
-        if response.status_code != 200:
-            if (response.status_code in (408, 429) or response.status_code >= 500) and attempt < MAX_GRAPHQL_RETRIES:
-                time.sleep(2 ** attempt)
-                continue
-            raise Exception(f"GraphQL query failed ({response.status_code}): {response.text}")
-
-        res_data = response.json()
-        errors = res_data.get("errors")
-        if errors:
-            is_transient = any(
-                "something went wrong while executing your query" in error.get("message", "").lower()
-                for error in errors
-            )
-            if is_transient and attempt < MAX_GRAPHQL_RETRIES:
-                time.sleep(2 ** attempt)
-                continue
-            raise Exception(f"GraphQL Errors: {errors}")
-        return res_data["data"]
+    response = requests.post(
+        GH_GRAPHQL_URL, 
+        json={"query": query, "variables": variables}, 
+        headers=headers
+    )
+    if response.status_code != 200:
+        raise Exception(f"GraphQL query failed ({response.status_code}): {response.text}")
+    res_data = response.json()
+    if "errors" in res_data:
+        raise Exception(f"GraphQL Errors: {res_data['errors']}")
+    return res_data["data"]
 
 # -------------------------------------------------------------------
 # 1. Personal GitHub Project v2 Field Discovery
@@ -104,7 +81,7 @@ def get_project_and_field_ids():
             break
             
     if not field_id:
-        raise ValueError(f"Custom field '{CUSTOM_FIELD_NAME}' not found in Project #{PROJECT_NUMBER}")
+        raise ValueError(f"Custom field '{FIELD_NAME}' not found in Project #{PROJECT_NUMBER}")
         
     return project_id, field_id
 
@@ -176,7 +153,7 @@ def compute_priority_score(issue):
     return round(final_score, 2)
 
 # -------------------------------------------------------------------
-# 4. Write Item & Score into your GitHub Projects v2 Board
+# 4. Write Item & Score into your Personal GitHub Project v2 Board
 # -------------------------------------------------------------------
 def sync_to_github_project(project_id, field_id, issue_node_id, score):
     # Step A: Import External Issue Node into your Personal Project Board

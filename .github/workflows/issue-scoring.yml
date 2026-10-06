@@ -23,10 +23,20 @@ jobs:
 
       - name: Run Scoring Script
         env:
-          GH_PAT: ${{ secrets.GITHUB_TOKEN }}
-          ORGANIZATION_NAME: "msftjonw"
+          # PAT for writing to your Personal GitHub Project v2 board
+          GH_PAT: ${{ secrets.GH_PROJECTS_PAT }}
+
+          # PAT for querying Microsoft/Azure enterprise public repositories
+          # MSFT_PAT: ${{ secrets.MSFT_ENTERPRISE_PAT }}
+
+          # YOUR PERSONAL GITHUB USERNAME
+          ORGANIZATION_NAME: "your-personal-github-username"
+
+          # YOUR PERSONAL PROJECT V2 BOARD NUMBER
           PROJECT_NUMBER: 1
           CUSTOM_FIELD_NAME: "Priority Score"
+
+          # PUBLIC TARGET REPOSITORIES
           TARGET_REPOS: >-
             kubernetes/kubernetes,
             kubernetes/enhancements,
