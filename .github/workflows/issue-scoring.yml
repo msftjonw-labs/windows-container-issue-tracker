@@ -1,0 +1,40 @@
+name: "Calculate Issue Priority Scores"
+
+on:
+  schedule:
+    - cron: "0 */6 * * *" # Triggers automatically every 6 hours
+  workflow_dispatch: # Enables manual trigger button in GitHub UI
+
+jobs:
+  score-issues:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Dependencies
+        run: |
+          pip install requests azure-ai-textanalytics azure-identity
+
+      - name: Run Scoring Script
+        env:
+          GH_PAT: ${{ secrets.GH_PROJECTS_PAT }}
+          AZURE_LANGUAGE_ENDPOINT: ${{ secrets.AZURE_LANGUAGE_ENDPOINT }}
+          AZURE_LANGUAGE_KEY: ${{ secrets.AZURE_LANGUAGE_KEY }}
+          ORGANIZATION_NAME: "msftjonw"
+          PROJECT_NUMBER: 1
+          CUSTOM_FIELD_NAME: "Priority Score"
+          TARGET_REPOS: >-
+            kubernetes/kubernetes,
+            helm/helm,
+            prometheus/prometheus,
+            containerd/containerd,
+            moby/moby,
+            envoyproxy/envoy,
+            argoproj/argo-cd
+        run: python scripts/calculate_scores.py
