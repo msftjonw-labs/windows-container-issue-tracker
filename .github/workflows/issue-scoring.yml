@@ -24,8 +24,6 @@ jobs:
       - name: Run Scoring Script
         env:
           GH_PAT: ${{ secrets.GH_PROJECTS_PAT }}
-          AZURE_LANGUAGE_ENDPOINT: ${{ secrets.AZURE_LANGUAGE_ENDPOINT }}
-          AZURE_LANGUAGE_KEY: ${{ secrets.AZURE_LANGUAGE_KEY }}
           ORGANIZATION_NAME: "msftjonw"
           PROJECT_NUMBER: 1
           CUSTOM_FIELD_NAME: "Priority Score"
