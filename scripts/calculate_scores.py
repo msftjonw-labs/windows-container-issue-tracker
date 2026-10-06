@@ -1,16 +1,12 @@
 import os
 import sys
 import requests
-from azure.core.credentials import AzureKeyCredential
-from azure.ai.textanalytics import TextAnalyticsClient
 
 # -------------------------------------------------------------------
 # Configuration & Environment Setup
 # -------------------------------------------------------------------
 GH_TOKEN = os.getenv("GH_PAT")
-AZURE_ENDPOINT = os.getenv("AZURE_LANGUAGE_ENDPOINT")
-AZURE_KEY = os.getenv("AZURE_LANGUAGE_KEY")
-ORG_NAME = os.getenv("ORGANIZATION_NAME")  # Org/user where YOUR Project v2 board resides
+ORG_NAME = os.getenv("ORGANIZATION_NAME")  # Account/Org where YOUR Project v2 board resides
 PROJECT_NUMBER = int(os.getenv("PROJECT_NUMBER", "1"))
 FIELD_NAME = os.getenv("CUSTOM_FIELD_NAME", "Priority Score")
 
@@ -18,10 +14,9 @@ FIELD_NAME = os.getenv("CUSTOM_FIELD_NAME", "Priority Score")
 TARGET_REPOS_RAW = os.getenv("TARGET_REPOS", "")
 TARGET_REPOS = [r.strip() for r in TARGET_REPOS_RAW.split(",") if r.strip()]
 
-# Custom Scoring Weights (Adjust to fit your triage strategy)
+# Custom Scoring Weights
 WEIGHT_UNIQUE_USERS = 3.0
 WEIGHT_TOTAL_COMMENTS = 1.0
-WEIGHT_NEGATIVE_SENTIMENT = 5.0  # Higher factor increases priority when comments are negative/frustrated
 LABEL_WEIGHTS = {
     "bug": 5.0,
     "customer-reported": 10.0,
@@ -30,16 +25,9 @@ LABEL_WEIGHTS = {
     "feature-request": 2.0
 }
 
-# API Clients
+# API Client Setup
 GH_GRAPHQL_URL = "https://api.github.com/graphql"
 headers = {"Authorization": f"Bearer {GH_TOKEN}"}
-
-azure_client = None
-if AZURE_ENDPOINT and AZURE_KEY:
-    azure_client = TextAnalyticsClient(
-        endpoint=AZURE_ENDPOINT, 
-        credential=AzureKeyCredential(AZURE_KEY)
-    )
 
 def run_graphql(query, variables=None):
     response = requests.post(
@@ -133,7 +121,6 @@ def fetch_external_repo_issues(repo_full_name):
             comments(first: 100) {
               nodes {
                 author { login }
-                body
               }
             }
           }
@@ -150,39 +137,9 @@ def fetch_external_repo_issues(repo_full_name):
     return data["repository"]["issues"]["nodes"]
 
 # -------------------------------------------------------------------
-# 3. Azure AI Sentiment Analysis
+# 3. Custom Weighted Priority Calculation
 # -------------------------------------------------------------------
-def calculate_sentiment_score(comments):
-    if not comments or not azure_client:
-        return 0.0
-        
-    documents = [c["body"][:500] for c in comments if c.get("body") and c["body"].strip()]
-    if not documents:
-        return 0.0
-
-    batch_size = 10
-    total_sentiment = 0.0
-    processed_count = 0
-
-    for i in range(0, len(documents), batch_size):
-        batch = documents[i:i + batch_size]
-        results = azure_client.analyze_sentiment(documents=batch)
-        
-        for doc in results:
-            if not doc.is_error:
-                pos = doc.confidence_scores.positive
-                neg = doc.confidence_scores.negative
-                # Converts probabilities to a scale from -1.0 (negative) to +1.0 (positive)
-                compound = pos - neg
-                total_sentiment += compound
-                processed_count += 1
-
-    return (total_sentiment / processed_count) if processed_count > 0 else 0.0
-
-# -------------------------------------------------------------------
-# 4. Custom Weighted Priority Calculation
-# -------------------------------------------------------------------
-def compute_priority_score(issue, sentiment_score):
+def compute_priority_score(issue):
     comments = issue["comments"]["nodes"]
     
     # Metric A: Unique Commenters
@@ -196,22 +153,17 @@ def compute_priority_score(issue, sentiment_score):
     label_names = [l["name"].lower() for l in issue["labels"]["nodes"]]
     label_score = sum(LABEL_WEIGHTS.get(label, 0.0) for label in label_names)
     
-    # Metric D: Sentiment Factor (Negative feedback drives higher priority)
-    # sentiment_score range: [-1.0, 1.0] -> negative_factor range: [0.0, 1.0]
-    negative_factor = (1.0 - sentiment_score) / 2.0
-
-    # Combined Equation
+    # Combined Formula
     final_score = (
         (unique_user_count * WEIGHT_UNIQUE_USERS) +
         (total_comments * WEIGHT_TOTAL_COMMENTS) +
-        (negative_factor * WEIGHT_NEGATIVE_SENTIMENT) +
         label_score
     )
     
     return round(final_score, 2)
 
 # -------------------------------------------------------------------
-# 5. Write Item & Score into your GitHub Projects v2 Board
+# 4. Write Item & Score into your GitHub Projects v2 Board
 # -------------------------------------------------------------------
 def sync_to_github_project(project_id, field_id, issue_node_id, score):
     # Step A: Import External Issue Node into your Project Board
@@ -259,12 +211,10 @@ def main():
         issues = fetch_external_repo_issues(target)
         
         for issue in issues:
-            comments = issue["comments"]["nodes"]
-            sentiment_score = calculate_sentiment_score(comments)
-            score = compute_priority_score(issue, sentiment_score)
+            score = compute_priority_score(issue)
             
             sync_to_github_project(project_id, field_id, issue["id"], score)
-            print(f"  └─ Issue #{issue['number']} ('{issue['title'][:30]}...') -> Sentiment: {sentiment_score:.2f} | Score: {score}")
+            print(f"  └─ Issue #{issue['number']} ('{issue['title'][:30]}...') -> Priority Score: {score}")
 
 if __name__ == "__main__":
     main()
