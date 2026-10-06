@@ -32,6 +32,13 @@ headers = {"Authorization": f"Bearer {GH_TOKEN}"}
 
 MAX_GRAPHQL_RETRIES = 3
 
+
+class GraphQLError(Exception):
+    def __init__(self, errors):
+        self.errors = errors
+        super().__init__(f"GraphQL Errors: {errors}")
+
+
 def run_graphql(query, variables=None):
     for attempt in range(MAX_GRAPHQL_RETRIES + 1):
         try:
@@ -62,7 +69,7 @@ def run_graphql(query, variables=None):
             if is_transient and attempt < MAX_GRAPHQL_RETRIES:
                 time.sleep(2 ** attempt)
                 continue
-            raise Exception(f"GraphQL Errors: {errors}")
+            raise GraphQLError(errors)
         return res_data["data"]
 
 # -------------------------------------------------------------------
@@ -141,8 +148,23 @@ def fetch_external_repo_issues(repo_full_name):
       }
     }
     """
-    data = run_graphql(query, {"owner": owner, "repo": repo})
-    
+    try:
+        data = run_graphql(query, {"owner": owner, "repo": repo})
+    except GraphQLError as error:
+        if error.errors and all(
+            error_data.get("type") == "FORBIDDEN"
+            and "forbids access via a personal access tokens (classic)"
+            in error_data.get("message", "").lower()
+            for error_data in error.errors
+        ):
+            print(
+                f"Warning: Skipping '{owner}/{repo}': GitHub's enterprise policy "
+                "blocks this classic personal access token. Use a token permitted "
+                "by the enterprise to score this repository."
+            )
+            return []
+        raise
+
     if not data or not data.get("repository"):
         print(f"Warning: Repository '{owner}/{repo}' not found or inaccessible.")
         return []

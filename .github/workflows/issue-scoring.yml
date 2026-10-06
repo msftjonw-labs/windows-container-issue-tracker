@@ -23,7 +23,7 @@ jobs:
 
       - name: Run Scoring Script
         env:
-          GH_PAT: ${{ secrets.GITHUB_TOKEN }}
+          GH_PAT: ${{ secrets.GH_PROJECTS_PAT }}
           ORGANIZATION_NAME: "msftjonw"
           PROJECT_NUMBER: 1
           CUSTOM_FIELD_NAME: "Priority Score"
