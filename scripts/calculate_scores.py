@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import requests
 
 # -------------------------------------------------------------------
@@ -29,18 +30,29 @@ LABEL_WEIGHTS = {
 GH_GRAPHQL_URL = "https://api.github.com/graphql"
 headers = {"Authorization": f"Bearer {GH_TOKEN}"}
 
+MAX_GRAPHQL_ATTEMPTS = 3
+
 def run_graphql(query, variables=None):
-    response = requests.post(
-        GH_GRAPHQL_URL, 
-        json={"query": query, "variables": variables}, 
-        headers=headers
-    )
-    if response.status_code != 200:
-        raise Exception(f"GraphQL query failed ({response.status_code}): {response.text}")
-    res_data = response.json()
-    if "errors" in res_data:
-        raise Exception(f"GraphQL Errors: {res_data['errors']}")
-    return res_data["data"]
+    for attempt in range(1, MAX_GRAPHQL_ATTEMPTS + 1):
+        response = requests.post(
+            GH_GRAPHQL_URL,
+            json={"query": query, "variables": variables},
+            headers=headers
+        )
+        if response.status_code != 200:
+            raise Exception(f"GraphQL query failed ({response.status_code}): {response.text}")
+        res_data = response.json()
+        errors = res_data.get("errors", [])
+        if errors:
+            transient_error = any(
+                error.get("message", "").startswith("Something went wrong while executing your query")
+                for error in errors
+            )
+            if transient_error and attempt < MAX_GRAPHQL_ATTEMPTS:
+                time.sleep(attempt)
+                continue
+            raise Exception(f"GraphQL Errors: {errors}")
+        return res_data["data"]
 
 # -------------------------------------------------------------------
 # 1. Personal GitHub Project v2 Field Discovery
