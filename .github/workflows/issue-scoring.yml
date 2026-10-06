@@ -10,10 +10,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
@@ -29,10 +29,16 @@ jobs:
           CUSTOM_FIELD_NAME: "Priority Score"
           TARGET_REPOS: >-
             kubernetes/kubernetes,
+            kubernetes/enhancements,
+            kubernetes/community,
             helm/helm,
             prometheus/prometheus,
             containerd/containerd,
             moby/moby,
             envoyproxy/envoy,
-            argoproj/argo-cd
+            argoproj/argo-cd,
+            docker/for-win,
+            microsoft/Windows-Containers,
+            microsoft/windows-container-tools,
+            Azure/AKS
         run: python scripts/calculate_scores.py
