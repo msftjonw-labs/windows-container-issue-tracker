@@ -81,7 +81,7 @@ def get_project_and_field_ids():
             break
             
     if not field_id:
-        raise ValueError(f"Custom field '{FIELD_NAME}' not found in Project #{PROJECT_NUMBER}")
+        raise ValueError(f"Custom field '{CUSTOM_FIELD_NAME}' not found in Project #{PROJECT_NUMBER}")
         
     return project_id, field_id
 
