@@ -30,7 +30,7 @@ jobs:
           # MSFT_PAT: ${{ secrets.MSFT_ENTERPRISE_PAT }}
 
           # YOUR PERSONAL GITHUB USERNAME
-          ORGANIZATION_NAME: "your-personal-github-username"
+          ORGANIZATION_NAME: "msftjonw"
 
           # YOUR PERSONAL PROJECT V2 BOARD NUMBER
           PROJECT_NUMBER: 1
