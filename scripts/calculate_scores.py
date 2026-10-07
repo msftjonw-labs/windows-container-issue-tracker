@@ -162,9 +162,13 @@ def fetch_external_repo_issues(repo_full_name):
 
     # Direct repository node query (bypasses GraphQL search engine tokenization issues)
     query = """
-    query($owner: String!, $repo: String!) {
+    query($owner: String!, $repo: String!, $first: Int!, $after: String) {
       repository(owner: $owner, name: $repo) {
-        issues(states: OPEN, first: 100, orderBy: {field: UPDATED_AT, direction: DESC}) {
+        issues(states: OPEN, first: $first, after: $after, orderBy: {field: UPDATED_AT, direction: DESC}) {
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
           nodes {
             id
             number
@@ -183,13 +187,27 @@ def fetch_external_repo_issues(repo_full_name):
       }
     }
     """
-    data = run_graphql(query, {"owner": owner, "repo": repo})
-    
-    if not data or not data.get("repository") or not data["repository"].get("issues"):
-        print(f"Warning: Repository '{repo_full_name}' not found or has no open issues.")
-        return []
+    raw_nodes = []
+    cursor = None
+    # Keep the 100-issue limit, but fetch smaller pages to avoid gateway timeouts.
+    while len(raw_nodes) < 100:
+        data = run_graphql(query, {
+            "owner": owner,
+            "repo": repo,
+            "first": min(10, 100 - len(raw_nodes)),
+            "after": cursor
+        })
 
-    raw_nodes = data["repository"]["issues"]["nodes"]
+        if not data or not data.get("repository") or not data["repository"].get("issues"):
+            print(f"Warning: Repository '{repo_full_name}' not found or has no open issues.")
+            return []
+
+        issues = data["repository"]["issues"]
+        raw_nodes.extend(issues["nodes"])
+        if not issues["nodes"] or not issues["pageInfo"]["hasNextPage"]:
+            break
+        cursor = issues["pageInfo"]["endCursor"]
+
     filtered_issues = []
 
     # Absolute exact string check on issue labels array
