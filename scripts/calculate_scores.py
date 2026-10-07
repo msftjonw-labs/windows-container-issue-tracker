@@ -147,60 +147,48 @@ def clear_project_board(project_id):
     print("Project board pre-clearing complete.\n")
 
 # -------------------------------------------------------------------
-# 2. Server-Side Direct Label Filtering Query + Full Label Fetch
+# 2. Search Query Builder & Strict Python Post-Filter
 # -------------------------------------------------------------------
-def get_required_label_for_repo(repo_full_name):
+def get_repo_search_config(repo_full_name):
     """
-    Returns exact label string required or None if no label filter is needed.
+    Returns tuple of (search_query_string, required_exact_label_or_None)
     """
     repo_lower = repo_full_name.lower()
 
-    # Rule 1: No label filter
+    # Rule 1: No label required
     no_label_repos = [
         "microsoft/windows-containers", 
         "microsoft/windows-container-tools",
         "docker/for-win"
     ]
     if repo_lower in no_label_repos:
-        return None
+        return f'repo:{repo_full_name} is:issue state:open', None
     
     # Rule 2: Must contain exact label 'windows'
     elif repo_lower == "azure/aks":
-        return "windows"
+        return f'repo:{repo_full_name} is:issue state:open label:"windows"', "windows"
     
     # Rule 3: Must contain exact label 'sig/windows'
     elif repo_lower in ["kubernetes/kubernetes", "kubernetes/enhancements", "kubernetes/community"]:
-        return "sig/windows"
+        return f'repo:{repo_full_name} is:issue state:open label:"sig/windows"', "sig/windows"
     
     # Rule 4: Must contain exact label 'platform/windows'
     elif repo_lower in ["moby/moby", "containerd/containerd"]:
-        return "platform/windows"
+        return f'repo:{repo_full_name} is:issue state:open label:"platform/windows"', "platform/windows"
     
     # Fallback
     else:
-        return "sig/windows"
+        return f'repo:{repo_full_name} is:issue state:open label:"sig/windows"', "sig/windows"
 
 def fetch_external_repo_issues(repo_full_name):
-    parts = repo_full_name.split("/")
-    if len(parts) != 2:
-        print(f"Skipping invalid target format '{repo_full_name}'. Expected 'owner/repo'.")
-        return []
-
-    owner, repo = parts[0], parts[1]
-    required_label = get_required_label_for_repo(repo_full_name)
-    
-    if required_label:
-        print(f"  └─ Applying Server-Side Label Filter: labels=['{required_label}']")
-        labels_param = [required_label]
-    else:
-        print(f"  └─ Fetching All Open Issues (No Label Filter)")
-        labels_param = None
+    search_query, required_label = get_repo_search_config(repo_full_name)
+    print(f"  └─ Query: '{search_query}'")
 
     query = """
-    query($owner: String!, $repo: String!, $labels: [String!]) {
-      repository(owner: $owner, name: $repo) {
-        issues(states: OPEN, labels: $labels, first: 100, orderBy: {field: UPDATED_AT, direction: DESC}) {
-          nodes {
+    query($searchQuery: String!) {
+      search(query: $searchQuery, type: ISSUE, first: 100) {
+        nodes {
+          ... on Issue {
             id
             number
             title
@@ -219,34 +207,32 @@ def fetch_external_repo_issues(repo_full_name):
     }
     """
     
-    variables = {
-        "owner": owner,
-        "repo": repo,
-        "labels": labels_param
-    }
+    data = run_graphql(query, {"searchQuery": search_query})
     
-    data = run_graphql(query, variables)
-    
-    if not data or not data.get("repository") or not data["repository"].get("issues"):
-        print(f"  └─ No matching issues found.")
+    if not data or not data.get("search"):
+        print(f"  └─ No issues returned from search.")
         return []
 
-    raw_nodes = data["repository"]["issues"]["nodes"]
-    
+    raw_nodes = data["search"]["nodes"]
     verified_issues = []
+
     for node in raw_nodes:
         if not node or "id" not in node:
             continue
             
         if required_label:
+            # Collect all label names in lowercase
             node_labels = [
                 l["name"].strip().lower() 
                 for l in node.get("labels", {}).get("nodes", []) 
                 if l and "name" in l
             ]
             
-            if required_label.lower() not in node_labels:
-                print(f"  └─ [EXCLUDED] Issue #{node['number']} did not contain target label '{required_label}'.")
+            target_label = required_label.strip().lower()
+            
+            # STRICT CHECK: If target_label is not in the array, drop it
+            if target_label not in node_labels:
+                print(f"  └─ [EXCLUDED] Issue #{node['number']} ({node['title'][:30]}...): missing exact label '{required_label}'")
                 continue
 
         verified_issues.append(node)
@@ -322,7 +308,7 @@ def main():
     print(f"Connecting to personal GitHub Projects (v2) for user '{GITHUB_USER}'...")
     project_id, field_id = get_project_and_field_ids()
 
-    # Step A: Clean up all old items from the board before populating
+    # Step A: Pre-clear board
     clear_project_board(project_id)
 
     # Step B: Populate fresh, strictly filtered issues
@@ -331,7 +317,7 @@ def main():
         issues = fetch_external_repo_issues(target)
         
         if not issues:
-            print(f"  └─ No open issues matching the required label.")
+            print(f"  └─ No matching issues found.")
             continue
 
         for issue in issues:
