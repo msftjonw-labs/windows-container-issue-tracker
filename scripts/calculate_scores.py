@@ -98,21 +98,22 @@ def get_project_and_field_ids():
     return project_id, field_id
 
 # -------------------------------------------------------------------
-# 2. Fetch Issues & Comments from External Target Repo
+# 2. Fetch Issues Matching 'is:issue state:open label:sig/windows'
 # -------------------------------------------------------------------
 def fetch_external_repo_issues(repo_full_name):
     parts = repo_full_name.split("/")
     if len(parts) != 2:
         print(f"Skipping invalid target format '{repo_full_name}'. Expected 'owner/repo'.")
         return []
-    
-    owner, repo = parts[0], parts[1]
+
+    # Constructs search query targeting open sig/windows issues in this specific repo
+    search_query_string = f"repo:{repo_full_name} is:issue state:open label:sig/windows"
 
     query = """
-    query($owner: String!, $repo: String!) {
-      repository(owner: $owner, name: $repo) {
-        issues(states: OPEN, first: 50, orderBy: {field: UPDATED_AT, direction: DESC}) {
-          nodes {
+    query($searchQuery: String!) {
+      search(query: $searchQuery, type: ISSUE, first: 50) {
+        nodes {
+          ... on Issue {
             id
             number
             title
@@ -130,19 +131,19 @@ def fetch_external_repo_issues(repo_full_name):
       }
     }
     """
-    data = run_graphql(query, {"owner": owner, "repo": repo})
+    data = run_graphql(query, {"searchQuery": search_query_string})
     
-    if not data or not data.get("repository"):
-        print(f"Warning: Repository '{owner}/{repo}' not found or inaccessible.")
+    if not data or not data.get("search"):
+        print(f"Warning: Could not perform search for '{repo_full_name}'.")
         return []
 
-    return data["repository"]["issues"]["nodes"]
+    return data["search"]["nodes"]
 
 # -------------------------------------------------------------------
 # 3. Custom Weighted Priority Calculation
 # -------------------------------------------------------------------
 def compute_priority_score(issue):
-    comments = issue["comments"]["nodes"]
+    comments = issue.get("comments", {}).get("nodes", [])
     
     # Metric A: Unique Commenters
     authors = {c["author"]["login"] for c in comments if c.get("author")}
@@ -152,7 +153,8 @@ def compute_priority_score(issue):
     total_comments = len(comments)
     
     # Metric C: Label Weights
-    label_names = [l["name"].lower() for l in issue["labels"]["nodes"]]
+    labels = issue.get("labels", {}).get("nodes", [])
+    label_names = [l["name"].lower() for l in labels]
     label_score = sum(LABEL_WEIGHTS.get(label, 0.0) for label in label_names)
     
     # Combined Formula
@@ -209,12 +211,19 @@ def main():
     project_id, field_id = get_project_and_field_ids()
 
     for target in TARGET_REPOS:
-        print(f"\nProcessing External Repository: {target}")
+        print(f"\nProcessing External Repository: {target} (Filter: is:issue state:open label:sig/windows)")
         issues = fetch_external_repo_issues(target)
         
+        if not issues:
+            print(f"  └─ No open issues matching 'label:sig/windows' found.")
+            continue
+
         for issue in issues:
+            # Safely handle empty nodes if returned by GraphQL search
+            if not issue or "id" not in issue:
+                continue
+
             score = compute_priority_score(issue)
-            
             sync_to_github_project(project_id, field_id, issue["id"], score)
             print(f"  └─ Issue #{issue['number']} ('{issue['title'][:30]}...') -> Priority Score: {score}")
 
