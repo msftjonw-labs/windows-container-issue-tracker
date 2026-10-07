@@ -12,6 +12,14 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v5
 
+      # Generates a fresh 1-hour installation token on the fly
+      - name: Generate GitHub App Token
+        id: generate-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
@@ -24,7 +32,8 @@ jobs:
       - name: Run Scoring Script
         env:
           # PAT for writing to your Personal GitHub Project v2 board
-          GH_PAT: ${{ secrets.GH_PROJECTS_PAT }}
+          # GH_PAT: ${{ secrets.GH_PROJECTS_PAT }}
+          GH_PAT: ${{ steps.generate-token.outputs.token }}
 
           # PAT for querying Microsoft/Azure enterprise public repositories
           # MSFT_PAT: ${{ secrets.MSFT_ENTERPRISE_PAT }}
