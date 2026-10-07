@@ -86,38 +86,38 @@ def get_project_and_field_ids():
     return project_id, field_id
 
 # -------------------------------------------------------------------
-# 2. Build Repository-Specific Search Query & Strict Python Filter
+# 2. Strict Repository-Level Querying & Exact Label Matching
 # -------------------------------------------------------------------
-def get_repo_search_config(repo_full_name):
+def get_required_label_for_repo(repo_full_name):
     """
-    Returns tuple of (graphql_search_string, required_label_exact_str_or_None)
+    Returns the exact required label string or None if no label filter is required.
     """
     repo_lower = repo_full_name.lower()
 
-    # Rule 1: No label requirement for Windows-Containers, windows-container-tools, docker/for-win
+    # Rule 1: No label requirement
     no_label_repos = [
         "microsoft/windows-containers", 
         "microsoft/windows-container-tools",
         "docker/for-win"
     ]
     if repo_lower in no_label_repos:
-        return f'repo:{repo_full_name} is:issue state:open', None
+        return None
     
-    # Rule 2: Must contain exact label 'windows' for Azure/AKS
+    # Rule 2: Must contain exact label 'windows'
     elif repo_lower == "azure/aks":
-        return f'repo:{repo_full_name} is:issue state:open label:"windows"', "windows"
+        return "windows"
     
-    # Rule 3: Must contain exact label 'sig/windows' for Kubernetes repos
+    # Rule 3: Must contain exact label 'sig/windows'
     elif repo_lower in ["kubernetes/kubernetes", "kubernetes/enhancements", "kubernetes/community"]:
-        return f'repo:{repo_full_name} is:issue state:open label:"sig/windows"', "sig/windows"
+        return "sig/windows"
     
-    # Rule 4: Must contain exact label 'platform/windows' for Moby & Containerd
+    # Rule 4: Must contain exact label 'platform/windows'
     elif repo_lower in ["moby/moby", "containerd/containerd"]:
-        return f'repo:{repo_full_name} is:issue state:open label:"platform/windows"', "platform/windows"
+        return "platform/windows"
     
-    # Rule 5: Default fallback for any unspecified extra repos
+    # Fallback
     else:
-        return f'repo:{repo_full_name} is:issue state:open label:"sig/windows"', "sig/windows"
+        return "sig/windows"
 
 def fetch_external_repo_issues(repo_full_name):
     parts = repo_full_name.split("/")
@@ -125,14 +125,20 @@ def fetch_external_repo_issues(repo_full_name):
         print(f"Skipping invalid target format '{repo_full_name}'. Expected 'owner/repo'.")
         return []
 
-    search_query_string, required_label = get_repo_search_config(repo_full_name)
-    print(f"  └─ Search Filter: '{search_query_string}'")
+    owner, repo = parts[0], parts[1]
+    required_label = get_required_label_for_repo(repo_full_name)
+    
+    if required_label:
+        print(f"  └─ Strict Label Requirement: MUST EXACTLY MATCH '{required_label}'")
+    else:
+        print(f"  └─ No Label Requirement (Fetching open issues)")
 
+    # Direct repository node query (bypasses GraphQL search engine tokenization issues)
     query = """
-    query($searchQuery: String!) {
-      search(query: $searchQuery, type: ISSUE, first: 50) {
-        nodes {
-          ... on Issue {
+    query($owner: String!, $repo: String!) {
+      repository(owner: $owner, name: $repo) {
+        issues(states: OPEN, first: 100, orderBy: {field: UPDATED_AT, direction: DESC}) {
+          nodes {
             id
             number
             title
@@ -150,22 +156,22 @@ def fetch_external_repo_issues(repo_full_name):
       }
     }
     """
-    data = run_graphql(query, {"searchQuery": search_query_string})
+    data = run_graphql(query, {"owner": owner, "repo": repo})
     
-    if not data or not data.get("search"):
-        print(f"Warning: Could not perform search for '{repo_full_name}'.")
+    if not data or not data.get("repository") or not data["repository"].get("issues"):
+        print(f"Warning: Repository '{repo_full_name}' not found or has no open issues.")
         return []
 
-    raw_nodes = data["search"]["nodes"]
+    raw_nodes = data["repository"]["issues"]["nodes"]
     filtered_issues = []
 
-    # Strict exact-match Python label check
+    # Absolute exact string check on issue labels array
     for node in raw_nodes:
         if not node or "id" not in node:
             continue
         
         if required_label:
-            # Get list of lowercase exact label names on this issue
+            # Extract exact label names from the node
             issue_labels = [
                 l["name"].strip().lower() 
                 for l in node.get("labels", {}).get("nodes", []) 
@@ -174,9 +180,8 @@ def fetch_external_repo_issues(repo_full_name):
             
             target_label = required_label.strip().lower()
             
-            # Explicitly enforce exact string match in label array
+            # Reject if the required string is not explicitly inside the label array
             if target_label not in issue_labels:
-                print(f"  └─ Skipped Issue #{node.get('number')}: missing required label '{required_label}'")
                 continue
 
         filtered_issues.append(node)
@@ -259,7 +264,7 @@ def main():
         issues = fetch_external_repo_issues(target)
         
         if not issues:
-            print(f"  └─ No matching issues found.")
+            print(f"  └─ No matching issues found with required exact label.")
             continue
 
         for issue in issues:
