@@ -7,6 +7,23 @@ from scripts import calculate_scores
 class RunGraphqlTests(unittest.TestCase):
     @patch("scripts.calculate_scores.time.sleep")
     @patch("scripts.calculate_scores.requests.post")
+    def test_retries_transient_gateway_timeout(self, post, sleep):
+        timeout_response = Mock()
+        timeout_response.status_code = 504
+        timeout_response.text = "Gateway Timeout"
+        success_response = Mock()
+        success_response.status_code = 200
+        success_response.json.return_value = {"data": {"viewer": {"login": "user"}}}
+        post.side_effect = [timeout_response, success_response]
+
+        result = calculate_scores.run_graphql("query { viewer { login } }")
+
+        self.assertEqual(result, {"viewer": {"login": "user"}})
+        self.assertEqual(post.call_count, 2)
+        sleep.assert_called_once_with(1)
+
+    @patch("scripts.calculate_scores.time.sleep")
+    @patch("scripts.calculate_scores.requests.post")
     def test_retries_transient_internal_error(self, post, sleep):
         transient_response = Mock()
         transient_response.status_code = 200
