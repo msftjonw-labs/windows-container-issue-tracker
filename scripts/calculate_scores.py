@@ -94,15 +94,28 @@ def get_repo_search_config(repo_full_name):
     """
     repo_lower = repo_full_name.lower()
 
-    # Rule 1: No label requirement for Windows-Containers & windows-container-tools
-    if repo_lower in ["microsoft/windows-containers", "microsoft/windows-container-tools"]:
+    # Rule 1: No label requirement for Windows-Containers, windows-container-tools, docker/for-win
+    no_label_repos = [
+        "microsoft/windows-containers", 
+        "microsoft/windows-container-tools",
+        "docker/for-win"
+    ]
+    if repo_lower in no_label_repos:
         return f'repo:{repo_full_name} is:issue state:open', None
     
     # Rule 2: Must contain exact label 'windows' for Azure/AKS
     elif repo_lower == "azure/aks":
         return f'repo:{repo_full_name} is:issue state:open label:"windows"', "windows"
     
-    # Rule 3: Must contain exact label 'sig/windows' for all other repos
+    # Rule 3: Must contain exact label 'sig/windows' for Kubernetes repos
+    elif repo_lower in ["kubernetes/kubernetes", "kubernetes/enhancements", "kubernetes/community"]:
+        return f'repo:{repo_full_name} is:issue state:open label:"sig/windows"', "sig/windows"
+    
+    # Rule 4: Must contain exact label 'platform/windows' for Moby & Containerd
+    elif repo_lower in ["moby/moby", "containerd/containerd"]:
+        return f'repo:{repo_full_name} is:issue state:open label:"platform/windows"', "platform/windows"
+    
+    # Rule 5: Default fallback for any unspecified extra repos
     else:
         return f'repo:{repo_full_name} is:issue state:open label:"sig/windows"', "sig/windows"
 
@@ -152,7 +165,7 @@ def fetch_external_repo_issues(repo_full_name):
             continue
         
         if required_label:
-            # Get list of lowercase exact label names
+            # Get list of lowercase exact label names on this issue
             issue_labels = [
                 l["name"].strip().lower() 
                 for l in node.get("labels", {}).get("nodes", []) 
