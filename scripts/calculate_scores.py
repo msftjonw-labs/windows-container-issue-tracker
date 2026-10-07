@@ -1,6 +1,5 @@
 import os
 import sys
-import time
 import requests
 
 # -------------------------------------------------------------------
@@ -30,29 +29,18 @@ LABEL_WEIGHTS = {
 GH_GRAPHQL_URL = "https://api.github.com/graphql"
 headers = {"Authorization": f"Bearer {GH_TOKEN}"}
 
-MAX_GRAPHQL_ATTEMPTS = 3
-
 def run_graphql(query, variables=None):
-    for attempt in range(1, MAX_GRAPHQL_ATTEMPTS + 1):
-        response = requests.post(
-            GH_GRAPHQL_URL,
-            json={"query": query, "variables": variables},
-            headers=headers
-        )
-        if response.status_code != 200:
-            raise Exception(f"GraphQL query failed ({response.status_code}): {response.text}")
-        res_data = response.json()
-        errors = res_data.get("errors", [])
-        if errors:
-            transient_error = any(
-                error.get("message", "").startswith("Something went wrong while executing your query")
-                for error in errors
-            )
-            if transient_error and attempt < MAX_GRAPHQL_ATTEMPTS:
-                time.sleep(attempt)
-                continue
-            raise Exception(f"GraphQL Errors: {errors}")
-        return res_data["data"]
+    response = requests.post(
+        GH_GRAPHQL_URL, 
+        json={"query": query, "variables": variables}, 
+        headers=headers
+    )
+    if response.status_code != 200:
+        raise Exception(f"GraphQL query failed ({response.status_code}): {response.text}")
+    res_data = response.json()
+    if "errors" in res_data:
+        raise Exception(f"GraphQL Errors: {res_data['errors']}")
+    return res_data["data"]
 
 # -------------------------------------------------------------------
 # 1. Personal GitHub Project v2 Field Discovery
@@ -98,16 +86,31 @@ def get_project_and_field_ids():
     return project_id, field_id
 
 # -------------------------------------------------------------------
-# 2. Fetch Issues Matching 'is:issue state:open label:sig/windows'
+# 2. Build Specific Search Query per Repository
 # -------------------------------------------------------------------
+def get_search_query_for_repo(repo_full_name):
+    repo_lower = repo_full_name.lower()
+
+    # Rule 1: No label filter for Windows-Containers & windows-container-tools
+    if repo_lower in ["microsoft/windows-containers", "microsoft/windows-container-tools"]:
+        return f"repo:{repo_full_name} is:issue state:open"
+    
+    # Rule 2: 'windows' label filter for Azure/AKS
+    elif repo_lower == "azure/aks":
+        return f"repo:{repo_full_name} is:issue state:open label:windows"
+    
+    # Rule 3: 'sig/windows' label filter for all other target repos
+    else:
+        return f"repo:{repo_full_name} is:issue state:open label:sig/windows"
+
 def fetch_external_repo_issues(repo_full_name):
     parts = repo_full_name.split("/")
     if len(parts) != 2:
         print(f"Skipping invalid target format '{repo_full_name}'. Expected 'owner/repo'.")
         return []
 
-    # Constructs search query targeting open sig/windows issues in this specific repo
-    search_query_string = f"repo:{repo_full_name} is:issue state:open label:sig/windows"
+    search_query_string = get_search_query_for_repo(repo_full_name)
+    print(f"  └─ Search Filter: '{search_query_string}'")
 
     query = """
     query($searchQuery: String!) {
@@ -211,15 +214,14 @@ def main():
     project_id, field_id = get_project_and_field_ids()
 
     for target in TARGET_REPOS:
-        print(f"\nProcessing External Repository: {target} (Filter: is:issue state:open label:sig/windows)")
+        print(f"\nProcessing External Repository: {target}")
         issues = fetch_external_repo_issues(target)
         
         if not issues:
-            print(f"  └─ No open issues matching 'label:sig/windows' found.")
+            print(f"  └─ No matching issues found.")
             continue
 
         for issue in issues:
-            # Safely handle empty nodes if returned by GraphQL search
             if not issue or "id" not in issue:
                 continue
 
