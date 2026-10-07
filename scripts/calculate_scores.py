@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import requests
 
 # -------------------------------------------------------------------
@@ -29,18 +30,41 @@ LABEL_WEIGHTS = {
 GH_GRAPHQL_URL = "https://api.github.com/graphql"
 headers = {"Authorization": f"Bearer {GH_TOKEN}"}
 
+MAX_GRAPHQL_ATTEMPTS = 3
+
 def run_graphql(query, variables=None):
-    response = requests.post(
-        GH_GRAPHQL_URL, 
-        json={"query": query, "variables": variables}, 
-        headers=headers
-    )
-    if response.status_code != 200:
-        raise Exception(f"GraphQL query failed ({response.status_code}): {response.text}")
-    res_data = response.json()
-    if "errors" in res_data:
-        raise Exception(f"GraphQL Errors: {res_data['errors']}")
-    return res_data["data"]
+    for attempt in range(MAX_GRAPHQL_ATTEMPTS):
+        response = requests.post(
+            GH_GRAPHQL_URL,
+            json={"query": query, "variables": variables},
+            headers=headers
+        )
+        if response.status_code != 200:
+            error = Exception(
+                f"GraphQL query failed ({response.status_code}): {response.text}"
+            )
+            if (
+                not 500 <= response.status_code < 600
+                or attempt == MAX_GRAPHQL_ATTEMPTS - 1
+            ):
+                raise error
+        else:
+            res_data = response.json()
+            if "errors" in res_data:
+                error = Exception(f"GraphQL Errors: {res_data['errors']}")
+                graphql_errors = res_data["errors"]
+                is_transient = all(
+                    isinstance(graphql_error, dict)
+                    and isinstance(graphql_error.get("message"), str)
+                    and "Something went wrong while executing your query"
+                    in graphql_error["message"]
+                    for graphql_error in graphql_errors
+                ) and bool(graphql_errors)
+                if not is_transient or attempt == MAX_GRAPHQL_ATTEMPTS - 1:
+                    raise error
+            else:
+                return res_data["data"]
+        time.sleep(attempt + 1)
 
 # -------------------------------------------------------------------
 # 1. Personal GitHub Project v2 Discovery & Board Cleanup
