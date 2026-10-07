@@ -86,25 +86,25 @@ def get_project_and_field_ids():
     return project_id, field_id
 
 # -------------------------------------------------------------------
-# 2. Build Repository-Specific Search Query & Verification
+# 2. Build Repository-Specific Search Query & Strict Python Filter
 # -------------------------------------------------------------------
 def get_repo_search_config(repo_full_name):
     """
-    Returns tuple of (graphql_search_string, required_label_or_None)
+    Returns tuple of (graphql_search_string, required_label_exact_str_or_None)
     """
     repo_lower = repo_full_name.lower()
 
     # Rule 1: No label requirement for Windows-Containers & windows-container-tools
     if repo_lower in ["microsoft/windows-containers", "microsoft/windows-container-tools"]:
-        return f"repo:{repo_full_name} is:issue state:open", None
+        return f'repo:{repo_full_name} is:issue state:open', None
     
-    # Rule 2: Must contain label 'windows' for Azure/AKS
+    # Rule 2: Must contain exact label 'windows' for Azure/AKS
     elif repo_lower == "azure/aks":
-        return f"repo:{repo_full_name} is:issue state:open label:windows", "windows"
+        return f'repo:{repo_full_name} is:issue state:open label:"windows"', "windows"
     
-    # Rule 3: Must contain label 'sig/windows' for all other repos
+    # Rule 3: Must contain exact label 'sig/windows' for all other repos
     else:
-        return f"repo:{repo_full_name} is:issue state:open label:sig/windows", "sig/windows"
+        return f'repo:{repo_full_name} is:issue state:open label:"sig/windows"', "sig/windows"
 
 def fetch_external_repo_issues(repo_full_name):
     parts = repo_full_name.split("/")
@@ -146,15 +146,24 @@ def fetch_external_repo_issues(repo_full_name):
     raw_nodes = data["search"]["nodes"]
     filtered_issues = []
 
-    # Verify label presence strictly in Python
+    # Strict exact-match Python label check
     for node in raw_nodes:
         if not node or "id" not in node:
             continue
         
         if required_label:
-            issue_labels = [l["name"].lower() for l in node.get("labels", {}).get("nodes", [])]
-            if required_label.lower() not in issue_labels:
-                # Skip issue if search returned a soft match missing the required label
+            # Get list of lowercase exact label names
+            issue_labels = [
+                l["name"].strip().lower() 
+                for l in node.get("labels", {}).get("nodes", []) 
+                if l and "name" in l
+            ]
+            
+            target_label = required_label.strip().lower()
+            
+            # Explicitly enforce exact string match in label array
+            if target_label not in issue_labels:
+                print(f"  └─ Skipped Issue #{node.get('number')}: missing required label '{required_label}'")
                 continue
 
         filtered_issues.append(node)
@@ -168,7 +177,7 @@ def compute_priority_score(issue):
     comments = issue.get("comments", {}).get("nodes", [])
     
     # Metric A: Unique Commenters
-    authors = {c["author"]["login"] for c in comments if c.get("author")}
+    authors = {c["author"]["login"] for c in comments if c and c.get("author")}
     unique_user_count = len(authors)
     
     # Metric B: Total Comment Count
@@ -176,7 +185,7 @@ def compute_priority_score(issue):
     
     # Metric C: Label Weights
     labels = issue.get("labels", {}).get("nodes", [])
-    label_names = [l["name"].lower() for l in labels]
+    label_names = [l["name"].lower() for l in labels if l and "name" in l]
     label_score = sum(LABEL_WEIGHTS.get(label, 0.0) for label in label_names)
     
     # Combined Formula
