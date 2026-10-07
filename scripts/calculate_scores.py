@@ -43,7 +43,7 @@ def run_graphql(query, variables=None):
     return res_data["data"]
 
 # -------------------------------------------------------------------
-# 1. Personal GitHub Project v2 Field Discovery
+# 1. Personal GitHub Project v2 Discovery & Board Cleanup
 # -------------------------------------------------------------------
 def get_project_and_field_ids():
     query = """
@@ -85,8 +85,45 @@ def get_project_and_field_ids():
         
     return project_id, field_id
 
+def clear_project_board(project_id):
+    """
+    Fetches all items currently on the project board and deletes them.
+    """
+    query = """
+    query($projectId: ID!) {
+      node(id: $projectId) {
+        ... on ProjectV2 {
+          items(first: 100) {
+            nodes {
+              id
+            }
+          }
+        }
+      }
+    }
+    """
+    data = run_graphql(query, {"projectId": project_id})
+    items = data.get("node", {}).get("items", {}).get("nodes", [])
+    
+    if not items:
+        print("Board is already empty.")
+        return
+
+    print(f"Clearing {len(items)} existing items from Project board...")
+    
+    delete_mutation = """
+    mutation($projectId: ID!, $itemId: ID!) {
+      deleteProjectV2Item(input: {projectId: $projectId, itemId: $itemId}) {
+        deletedItemId
+      }
+    }
+    """
+    for item in items:
+        run_graphql(delete_mutation, {"projectId": project_id, "itemId": item["id"]})
+    print("Project board pre-clearing complete.\n")
+
 # -------------------------------------------------------------------
-# 2. Server-Side Direct Label Filtering Query
+# 2. Server-Side Direct Label Filtering Query + Full Label Fetch
 # -------------------------------------------------------------------
 def get_required_label_for_repo(repo_full_name):
     """
@@ -135,7 +172,6 @@ def fetch_external_repo_issues(repo_full_name):
         print(f"  └─ Fetching All Open Issues (No Label Filter)")
         labels_param = None
 
-    # Query repository issues passing the 'labels' argument directly to GitHub
     query = """
     query($owner: String!, $repo: String!, $labels: [String!]) {
       repository(owner: $owner, name: $repo) {
@@ -145,7 +181,7 @@ def fetch_external_repo_issues(repo_full_name):
             number
             title
             url
-            labels(first: 50) {
+            labels(first: 100) {
               nodes { name }
             }
             comments(first: 100) {
@@ -173,7 +209,6 @@ def fetch_external_repo_issues(repo_full_name):
 
     raw_nodes = data["repository"]["issues"]["nodes"]
     
-    # Strictly check Python array as a secondary safety guard
     verified_issues = []
     for node in raw_nodes:
         if not node or "id" not in node:
@@ -185,8 +220,9 @@ def fetch_external_repo_issues(repo_full_name):
                 for l in node.get("labels", {}).get("nodes", []) 
                 if l and "name" in l
             ]
+            
             if required_label.lower() not in node_labels:
-                # Discard if truncated label nodes didn't include it
+                print(f"  └─ [EXCLUDED] Issue #{node['number']} did not contain target label '{required_label}'.")
                 continue
 
         verified_issues.append(node)
@@ -262,8 +298,12 @@ def main():
     print(f"Connecting to personal GitHub Projects (v2) for user '{GITHUB_USER}'...")
     project_id, field_id = get_project_and_field_ids()
 
+    # Step A: Clean up all old items from the board before populating
+    clear_project_board(project_id)
+
+    # Step B: Populate fresh, strictly filtered issues
     for target in TARGET_REPOS:
-        print(f"\nProcessing External Repository: {target}")
+        print(f"Processing External Repository: {target}")
         issues = fetch_external_repo_issues(target)
         
         if not issues:
@@ -273,7 +313,7 @@ def main():
         for issue in issues:
             score = compute_priority_score(issue)
             sync_to_github_project(project_id, field_id, issue["id"], score)
-            print(f"  └─ Issue #{issue['number']} ('{issue['title'][:30]}...') -> Priority Score: {score}")
+            print(f"  └─ [ADDED] Issue #{issue['number']} ('{issue['title'][:30]}...') -> Priority Score: {score}")
 
 if __name__ == "__main__":
     main()
