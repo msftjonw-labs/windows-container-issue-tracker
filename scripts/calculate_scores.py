@@ -1,6 +1,5 @@
 import os
 import sys
-import time
 import requests
 
 # -------------------------------------------------------------------
@@ -30,44 +29,18 @@ LABEL_WEIGHTS = {
 GH_GRAPHQL_URL = "https://api.github.com/graphql"
 headers = {"Authorization": f"Bearer {GH_TOKEN}"}
 
-MAX_GRAPHQL_ATTEMPTS = 3
-TRANSIENT_HTTP_STATUS_CODES = {429, 500, 502, 503, 504}
-
 def run_graphql(query, variables=None):
-    for attempt in range(MAX_GRAPHQL_ATTEMPTS):
-        try:
-            response = requests.post(
-                GH_GRAPHQL_URL,
-                json={"query": query, "variables": variables},
-                headers=headers
-            )
-        except requests.RequestException:
-            if attempt == MAX_GRAPHQL_ATTEMPTS - 1:
-                raise
-        else:
-            if response.status_code != 200:
-                error = Exception(
-                    f"GraphQL query failed ({response.status_code}): {response.text}"
-                )
-                if response.status_code not in TRANSIENT_HTTP_STATUS_CODES:
-                    raise error
-                if attempt == MAX_GRAPHQL_ATTEMPTS - 1:
-                    raise error
-            else:
-                res_data = response.json()
-                if "errors" not in res_data:
-                    return res_data["data"]
-
-                error = Exception(f"GraphQL Errors: {res_data['errors']}")
-                is_transient = any(
-                    "Something went wrong while executing your query."
-                    in graphql_error.get("message", "")
-                    for graphql_error in res_data["errors"]
-                )
-                if not is_transient or attempt == MAX_GRAPHQL_ATTEMPTS - 1:
-                    raise error
-
-        time.sleep(attempt + 1)
+    response = requests.post(
+        GH_GRAPHQL_URL, 
+        json={"query": query, "variables": variables}, 
+        headers=headers
+    )
+    if response.status_code != 200:
+        raise Exception(f"GraphQL query failed ({response.status_code}): {response.text}")
+    res_data = response.json()
+    if "errors" in res_data:
+        raise Exception(f"GraphQL Errors: {res_data['errors']}")
+    return res_data["data"]
 
 # -------------------------------------------------------------------
 # 1. Personal GitHub Project v2 Field Discovery
@@ -113,15 +86,15 @@ def get_project_and_field_ids():
     return project_id, field_id
 
 # -------------------------------------------------------------------
-# 2. Strict Repository-Level Querying & Exact Label Matching
+# 2. Server-Side Direct Label Filtering Query
 # -------------------------------------------------------------------
 def get_required_label_for_repo(repo_full_name):
     """
-    Returns the exact required label string or None if no label filter is required.
+    Returns exact label string required or None if no label filter is needed.
     """
     repo_lower = repo_full_name.lower()
 
-    # Rule 1: No label requirement
+    # Rule 1: No label filter
     no_label_repos = [
         "microsoft/windows-containers", 
         "microsoft/windows-container-tools",
@@ -156,19 +129,17 @@ def fetch_external_repo_issues(repo_full_name):
     required_label = get_required_label_for_repo(repo_full_name)
     
     if required_label:
-        print(f"  └─ Strict Label Requirement: MUST EXACTLY MATCH '{required_label}'")
+        print(f"  └─ Applying Server-Side Label Filter: labels=['{required_label}']")
+        labels_param = [required_label]
     else:
-        print(f"  └─ No Label Requirement (Fetching open issues)")
+        print(f"  └─ Fetching All Open Issues (No Label Filter)")
+        labels_param = None
 
-    # Direct repository node query (bypasses GraphQL search engine tokenization issues)
+    # Query repository issues passing the 'labels' argument directly to GitHub
     query = """
-    query($owner: String!, $repo: String!, $first: Int!, $after: String) {
+    query($owner: String!, $repo: String!, $labels: [String!]) {
       repository(owner: $owner, name: $repo) {
-        issues(states: OPEN, first: $first, after: $after, orderBy: {field: UPDATED_AT, direction: DESC}) {
-          pageInfo {
-            hasNextPage
-            endCursor
-          }
+        issues(states: OPEN, labels: $labels, first: 100, orderBy: {field: UPDATED_AT, direction: DESC}) {
           nodes {
             id
             number
@@ -187,51 +158,40 @@ def fetch_external_repo_issues(repo_full_name):
       }
     }
     """
-    raw_nodes = []
-    cursor = None
-    # Keep the 100-issue limit, but fetch smaller pages to avoid gateway timeouts.
-    while len(raw_nodes) < 100:
-        data = run_graphql(query, {
-            "owner": owner,
-            "repo": repo,
-            "first": min(10, 100 - len(raw_nodes)),
-            "after": cursor
-        })
+    
+    variables = {
+        "owner": owner,
+        "repo": repo,
+        "labels": labels_param
+    }
+    
+    data = run_graphql(query, variables)
+    
+    if not data or not data.get("repository") or not data["repository"].get("issues"):
+        print(f"  └─ No matching issues found.")
+        return []
 
-        if not data or not data.get("repository") or not data["repository"].get("issues"):
-            print(f"Warning: Repository '{repo_full_name}' not found or has no open issues.")
-            return []
-
-        issues = data["repository"]["issues"]
-        raw_nodes.extend(issues["nodes"])
-        if not issues["nodes"] or not issues["pageInfo"]["hasNextPage"]:
-            break
-        cursor = issues["pageInfo"]["endCursor"]
-
-    filtered_issues = []
-
-    # Absolute exact string check on issue labels array
+    raw_nodes = data["repository"]["issues"]["nodes"]
+    
+    # Strictly check Python array as a secondary safety guard
+    verified_issues = []
     for node in raw_nodes:
         if not node or "id" not in node:
             continue
-        
+            
         if required_label:
-            # Extract exact label names from the node
-            issue_labels = [
+            node_labels = [
                 l["name"].strip().lower() 
                 for l in node.get("labels", {}).get("nodes", []) 
                 if l and "name" in l
             ]
-            
-            target_label = required_label.strip().lower()
-            
-            # Reject if the required string is not explicitly inside the label array
-            if target_label not in issue_labels:
+            if required_label.lower() not in node_labels:
+                # Discard if truncated label nodes didn't include it
                 continue
 
-        filtered_issues.append(node)
+        verified_issues.append(node)
 
-    return filtered_issues
+    return verified_issues
 
 # -------------------------------------------------------------------
 # 3. Custom Weighted Priority Calculation
@@ -264,7 +224,6 @@ def compute_priority_score(issue):
 # 4. Write Item & Score into your Personal GitHub Project v2 Board
 # -------------------------------------------------------------------
 def sync_to_github_project(project_id, field_id, issue_node_id, score):
-    # Step A: Import External Issue Node into your Personal Project Board
     add_item_mutation = """
     mutation($projectId: ID!, $contentId: ID!) {
       addProjectV2ItemById(input: {projectId: $projectId, contentId: $contentId}) {
@@ -275,7 +234,6 @@ def sync_to_github_project(project_id, field_id, issue_node_id, score):
     item_data = run_graphql(add_item_mutation, {"projectId": project_id, "contentId": issue_node_id})
     item_id = item_data["addProjectV2ItemById"]["item"]["id"]
 
-    # Step B: Set Numerical Score in Custom Field
     update_field_mutation = """
     mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $value: Float!) {
       updateProjectV2ItemFieldValue(
@@ -309,7 +267,7 @@ def main():
         issues = fetch_external_repo_issues(target)
         
         if not issues:
-            print(f"  └─ No matching issues found with required exact label.")
+            print(f"  └─ No open issues matching the required label.")
             continue
 
         for issue in issues:
