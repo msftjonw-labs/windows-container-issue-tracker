@@ -4,6 +4,107 @@ from unittest.mock import Mock, patch
 from scripts import calculate_scores
 
 
+class FetchExternalRepoIssuesTests(unittest.TestCase):
+    @staticmethod
+    def page(nodes, has_next_page=False, cursor=None):
+        return {
+            "repository": {
+                "issues": {
+                    "nodes": nodes,
+                    "pageInfo": {"hasNextPage": has_next_page, "endCursor": cursor}
+                }
+            }
+        }
+
+    @patch("scripts.calculate_scores.run_graphql")
+    def test_paginates_and_preserves_exact_label_filter_and_scores(self, graphql):
+        matching_issue = {
+            "id": "issue-2",
+            "labels": {"nodes": [{"name": "sig/windows"}, {"name": "bug"}]},
+            "comments": {"nodes": [
+                {"author": {"login": "user"}},
+                {"author": {"login": "user"}},
+                {"author": None}
+            ]}
+        }
+        graphql.side_effect = [
+            self.page([
+                {"id": "issue-1", "labels": {"nodes": [{"name": "sig/windows-extra"}]}}
+            ], True, "next-page"),
+            self.page([matching_issue])
+        ]
+
+        issues = calculate_scores.fetch_external_repo_issues("kubernetes/kubernetes")
+
+        self.assertEqual(issues, [matching_issue])
+        self.assertEqual(calculate_scores.compute_priority_score(issues[0]), 11.0)
+        self.assertEqual(graphql.call_count, 2)
+        self.assertEqual(graphql.call_args_list[0].args[1], {
+            "owner": "kubernetes", "repo": "kubernetes", "first": 10, "after": None
+        })
+        self.assertEqual(graphql.call_args_list[1].args[1], {
+            "owner": "kubernetes", "repo": "kubernetes", "first": 10, "after": "next-page"
+        })
+        query = graphql.call_args.args[0]
+        self.assertIn("first: $first, after: $after", query)
+        self.assertIn("orderBy: {field: UPDATED_AT, direction: DESC}", query)
+        self.assertIn("comments(first: 100)", query)
+        self.assertIn("labels(first: 50)", query)
+
+    @patch("scripts.calculate_scores.run_graphql")
+    def test_stops_at_100_issues_even_when_none_match(self, graphql):
+        nodes = [{"id": f"issue-{i}", "labels": {"nodes": []}} for i in range(100)]
+        graphql.side_effect = [
+            self.page(nodes[i:i + 10], True, f"cursor-{i + 10}")
+            for i in range(0, 100, 10)
+        ]
+
+        self.assertEqual(
+            calculate_scores.fetch_external_repo_issues("kubernetes/kubernetes"), []
+        )
+
+        self.assertEqual(graphql.call_count, 10)
+        self.assertTrue(all(call.args[1]["first"] == 10 for call in graphql.call_args_list))
+        self.assertEqual(graphql.call_args.args[1]["after"], "cursor-90")
+
+    @patch("scripts.calculate_scores.run_graphql")
+    def test_no_label_requirement_preserves_issue_order_across_pages(self, graphql):
+        nodes = [{"id": f"issue-{i}"} for i in range(12)]
+        graphql.side_effect = [
+            self.page(nodes[:10], True, "next-page"),
+            self.page(nodes[10:])
+        ]
+
+        self.assertEqual(
+            calculate_scores.fetch_external_repo_issues("microsoft/windows-containers"),
+            nodes
+        )
+        self.assertEqual(graphql.call_count, 2)
+
+    @patch("scripts.calculate_scores.run_graphql")
+    def test_empty_or_missing_repository(self, graphql):
+        for response in (None, {"repository": None}, self.page([])):
+            with self.subTest(response=response):
+                graphql.reset_mock()
+                graphql.return_value = response
+
+                self.assertEqual(
+                    calculate_scores.fetch_external_repo_issues("kubernetes/kubernetes"),
+                    []
+                )
+                graphql.assert_called_once()
+
+    @patch("scripts.calculate_scores.run_graphql")
+    def test_page_failure_is_not_silently_skipped(self, graphql):
+        graphql.side_effect = [
+            self.page([{"id": "issue-1"}], True, "next-page"),
+            Exception("GraphQL query failed (504)")
+        ]
+
+        with self.assertRaisesRegex(Exception, "GraphQL query failed"):
+            calculate_scores.fetch_external_repo_issues("microsoft/windows-containers")
+
+
 class RunGraphqlTests(unittest.TestCase):
     @patch("scripts.calculate_scores.time.sleep")
     @patch("scripts.calculate_scores.requests.post")
