@@ -86,22 +86,25 @@ def get_project_and_field_ids():
     return project_id, field_id
 
 # -------------------------------------------------------------------
-# 2. Build Specific Search Query per Repository
+# 2. Build Repository-Specific Search Query & Verification
 # -------------------------------------------------------------------
-def get_search_query_for_repo(repo_full_name):
+def get_repo_search_config(repo_full_name):
+    """
+    Returns tuple of (graphql_search_string, required_label_or_None)
+    """
     repo_lower = repo_full_name.lower()
 
-    # Rule 1: No label filter for Windows-Containers & windows-container-tools
+    # Rule 1: No label requirement for Windows-Containers & windows-container-tools
     if repo_lower in ["microsoft/windows-containers", "microsoft/windows-container-tools"]:
-        return f"repo:{repo_full_name} is:issue state:open"
+        return f"repo:{repo_full_name} is:issue state:open", None
     
-    # Rule 2: 'windows' label filter for Azure/AKS
+    # Rule 2: Must contain label 'windows' for Azure/AKS
     elif repo_lower == "azure/aks":
-        return f"repo:{repo_full_name} is:issue state:open label:windows"
+        return f"repo:{repo_full_name} is:issue state:open label:windows", "windows"
     
-    # Rule 3: 'sig/windows' label filter for all other target repos
+    # Rule 3: Must contain label 'sig/windows' for all other repos
     else:
-        return f"repo:{repo_full_name} is:issue state:open label:sig/windows"
+        return f"repo:{repo_full_name} is:issue state:open label:sig/windows", "sig/windows"
 
 def fetch_external_repo_issues(repo_full_name):
     parts = repo_full_name.split("/")
@@ -109,7 +112,7 @@ def fetch_external_repo_issues(repo_full_name):
         print(f"Skipping invalid target format '{repo_full_name}'. Expected 'owner/repo'.")
         return []
 
-    search_query_string = get_search_query_for_repo(repo_full_name)
+    search_query_string, required_label = get_repo_search_config(repo_full_name)
     print(f"  └─ Search Filter: '{search_query_string}'")
 
     query = """
@@ -121,7 +124,7 @@ def fetch_external_repo_issues(repo_full_name):
             number
             title
             url
-            labels(first: 20) {
+            labels(first: 50) {
               nodes { name }
             }
             comments(first: 100) {
@@ -140,7 +143,23 @@ def fetch_external_repo_issues(repo_full_name):
         print(f"Warning: Could not perform search for '{repo_full_name}'.")
         return []
 
-    return data["search"]["nodes"]
+    raw_nodes = data["search"]["nodes"]
+    filtered_issues = []
+
+    # Verify label presence strictly in Python
+    for node in raw_nodes:
+        if not node or "id" not in node:
+            continue
+        
+        if required_label:
+            issue_labels = [l["name"].lower() for l in node.get("labels", {}).get("nodes", [])]
+            if required_label.lower() not in issue_labels:
+                # Skip issue if search returned a soft match missing the required label
+                continue
+
+        filtered_issues.append(node)
+
+    return filtered_issues
 
 # -------------------------------------------------------------------
 # 3. Custom Weighted Priority Calculation
@@ -222,9 +241,6 @@ def main():
             continue
 
         for issue in issues:
-            if not issue or "id" not in issue:
-                continue
-
             score = compute_priority_score(issue)
             sync_to_github_project(project_id, field_id, issue["id"], score)
             print(f"  └─ Issue #{issue['number']} ('{issue['title'][:30]}...') -> Priority Score: {score}")
