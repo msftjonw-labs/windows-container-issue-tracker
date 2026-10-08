@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import requests
 
 # -------------------------------------------------------------------
@@ -47,33 +48,82 @@ headers_project = {
     "Accept": "application/vnd.github+json"
 }
 
-def run_public_graphql(query, variables=None):
-    """Executes GraphQL queries against public repositories using the GitHub App token."""
-    response = requests.post(
-        GH_GRAPHQL_URL, 
-        json={"query": query, "variables": variables}, 
-        headers=headers_public
-    )
-    if response.status_code != 200:
-        raise Exception(f"Public Repo GraphQL query failed ({response.status_code}): {response.text}")
-    res_data = response.json()
-    if "errors" in res_data:
-        raise Exception(f"Public Repo GraphQL Errors: {res_data['errors']}")
-    return res_data["data"]
+def run_public_graphql(query, variables=None, max_retries=3, backoff_factor=2):
+    """
+    Executes GraphQL queries against public repositories using the GitHub App token.
+    Retries automatically on HTTP 500/502/503/504 transient errors up to max_retries.
+    """
+    for attempt in range(1, max_retries + 1):
+        try:
+            response = requests.post(
+                GH_GRAPHQL_URL, 
+                json={"query": query, "variables": variables}, 
+                headers=headers_public,
+                timeout=30
+            )
+            
+            # Retry on 504 Gateway Timeout and server error statuses
+            if response.status_code in [500, 502, 503, 504]:
+                if attempt < max_retries:
+                    sleep_time = backoff_factor ** attempt
+                    print(f"  └─ [WARNING] Public GraphQL HTTP {response.status_code}. Retrying ({attempt}/{max_retries}) in {sleep_time}s...")
+                    time.sleep(sleep_time)
+                    continue
 
-def run_project_graphql(query, variables=None):
-    """Executes GraphQL queries against your personal Project v2 using your Personal PAT."""
-    response = requests.post(
-        GH_GRAPHQL_URL, 
-        json={"query": query, "variables": variables}, 
-        headers=headers_project
-    )
-    if response.status_code != 200:
-        raise Exception(f"Project v2 GraphQL query failed ({response.status_code}): {response.text}")
-    res_data = response.json()
-    if "errors" in res_data:
-        raise Exception(f"Project v2 GraphQL Errors: {res_data['errors']}")
-    return res_data["data"]
+            if response.status_code != 200:
+                raise Exception(f"Public Repo GraphQL query failed ({response.status_code}): {response.text}")
+            
+            res_data = response.json()
+            if "errors" in res_data:
+                raise Exception(f"Public Repo GraphQL Errors: {res_data['errors']}")
+            
+            return res_data["data"]
+
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+            if attempt < max_retries:
+                sleep_time = backoff_factor ** attempt
+                print(f"  └─ [WARNING] Public GraphQL connection error: {e}. Retrying ({attempt}/{max_retries}) in {sleep_time}s...")
+                time.sleep(sleep_time)
+            else:
+                raise Exception(f"Public Repo GraphQL failed after {max_retries} attempts due to network timeout/error: {e}")
+
+def run_project_graphql(query, variables=None, max_retries=3, backoff_factor=2):
+    """
+    Executes GraphQL queries against your personal Project v2 using your Personal PAT.
+    Includes retry logic for transient errors.
+    """
+    for attempt in range(1, max_retries + 1):
+        try:
+            response = requests.post(
+                GH_GRAPHQL_URL, 
+                json={"query": query, "variables": variables}, 
+                headers=headers_project,
+                timeout=30
+            )
+            
+            if response.status_code in [500, 502, 503, 504]:
+                if attempt < max_retries:
+                    sleep_time = backoff_factor ** attempt
+                    print(f"  └─ [WARNING] Project GraphQL HTTP {response.status_code}. Retrying ({attempt}/{max_retries}) in {sleep_time}s...")
+                    time.sleep(sleep_time)
+                    continue
+
+            if response.status_code != 200:
+                raise Exception(f"Project v2 GraphQL query failed ({response.status_code}): {response.text}")
+            
+            res_data = response.json()
+            if "errors" in res_data:
+                raise Exception(f"Project v2 GraphQL Errors: {res_data['errors']}")
+            
+            return res_data["data"]
+
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+            if attempt < max_retries:
+                sleep_time = backoff_factor ** attempt
+                print(f"  └─ [WARNING] Project GraphQL connection error: {e}. Retrying ({attempt}/{max_retries}) in {sleep_time}s...")
+                time.sleep(sleep_time)
+            else:
+                raise Exception(f"Project v2 GraphQL failed after {max_retries} attempts due to network timeout/error: {e}")
 
 # -------------------------------------------------------------------
 # 1. Personal GitHub Project v2 Discovery & Board Cleanup
