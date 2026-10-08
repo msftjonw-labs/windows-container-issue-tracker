@@ -5,10 +5,19 @@ import requests
 # -------------------------------------------------------------------
 # Configuration & Environment Setup
 # -------------------------------------------------------------------
-GH_TOKEN = os.getenv("GITHUB_TOKEN")
+# Dual Tokens: App Token for public repos, Personal PAT for User Project v2
+APP_READ_TOKEN = os.getenv("APP_PUBLIC_READ_TOKEN")
+PROJECT_PAT = os.getenv("PERSONAL_PROJECT_PAT")
+
 GITHUB_USER = os.getenv("ORGANIZATION_NAME")  # Your personal GitHub username
 PROJECT_NUMBER = int(os.getenv("PROJECT_NUMBER", "1"))
 FIELD_NAME = os.getenv("CUSTOM_FIELD_NAME", "Priority Score")
+
+# Validate credentials on startup
+if not APP_READ_TOKEN:
+    raise ValueError("Missing required environment variable: APP_PUBLIC_READ_TOKEN")
+if not PROJECT_PAT:
+    raise ValueError("Missing required environment variable: PERSONAL_PROJECT_PAT")
 
 # Parse target external repos ("owner1/repo1, owner2/repo2")
 TARGET_REPOS_RAW = os.getenv("TARGET_REPOS", "")
@@ -27,19 +36,43 @@ LABEL_WEIGHTS = {
 
 # API Client Setup
 GH_GRAPHQL_URL = "https://api.github.com/graphql"
-headers = {"Authorization": f"Bearer {GH_TOKEN}"}
 
-def run_graphql(query, variables=None):
+headers_public = {
+    "Authorization": f"Bearer {APP_READ_TOKEN}",
+    "Accept": "application/vnd.github+json"
+}
+
+headers_project = {
+    "Authorization": f"Bearer {PROJECT_PAT}",
+    "Accept": "application/vnd.github+json"
+}
+
+def run_public_graphql(query, variables=None):
+    """Executes GraphQL queries against public repositories using the GitHub App token."""
     response = requests.post(
         GH_GRAPHQL_URL, 
         json={"query": query, "variables": variables}, 
-        headers=headers
+        headers=headers_public
     )
     if response.status_code != 200:
-        raise Exception(f"GraphQL query failed ({response.status_code}): {response.text}")
+        raise Exception(f"Public Repo GraphQL query failed ({response.status_code}): {response.text}")
     res_data = response.json()
     if "errors" in res_data:
-        raise Exception(f"GraphQL Errors: {res_data['errors']}")
+        raise Exception(f"Public Repo GraphQL Errors: {res_data['errors']}")
+    return res_data["data"]
+
+def run_project_graphql(query, variables=None):
+    """Executes GraphQL queries against your personal Project v2 using your Personal PAT."""
+    response = requests.post(
+        GH_GRAPHQL_URL, 
+        json={"query": query, "variables": variables}, 
+        headers=headers_project
+    )
+    if response.status_code != 200:
+        raise Exception(f"Project v2 GraphQL query failed ({response.status_code}): {response.text}")
+    res_data = response.json()
+    if "errors" in res_data:
+        raise Exception(f"Project v2 GraphQL Errors: {res_data['errors']}")
     return res_data["data"]
 
 # -------------------------------------------------------------------
@@ -63,7 +96,7 @@ def get_project_and_field_ids():
       }
     }
     """
-    data = run_graphql(query, {"user": GITHUB_USER, "number": PROJECT_NUMBER})
+    data = run_project_graphql(query, {"user": GITHUB_USER, "number": PROJECT_NUMBER})
     
     user_data = data.get("user")
     if not user_data:
@@ -102,7 +135,7 @@ def clear_project_board(project_id):
       }
     }
     """
-    data = run_graphql(query, {"projectId": project_id})
+    data = run_project_graphql(query, {"projectId": project_id})
     items = data.get("node", {}).get("items", {}).get("nodes", [])
     
     if not items:
@@ -119,7 +152,7 @@ def clear_project_board(project_id):
     }
     """
     for item in items:
-        run_graphql(delete_mutation, {"projectId": project_id, "itemId": item["id"]})
+        run_project_graphql(delete_mutation, {"projectId": project_id, "itemId": item["id"]})
     print("Project board pre-clearing complete.\n")
 
 # -------------------------------------------------------------------
@@ -170,7 +203,7 @@ def fetch_external_repo_issues(repo_full_name):
     else:
         print(f"  └─ Fetching All Open Issues (No Label Filter)")
 
-    # Direct repository node query to avoid search tokenizer behavior
+    # Query public repositories using APP_PUBLIC_READ_TOKEN
     query = """
     query($owner: String!, $repo: String!) {
       repository(owner: $owner, name: $repo) {
@@ -194,7 +227,7 @@ def fetch_external_repo_issues(repo_full_name):
     }
     """
     
-    data = run_graphql(query, {"owner": owner, "repo": repo})
+    data = run_public_graphql(query, {"owner": owner, "repo": repo})
     
     if not data or not data.get("repository") or not data["repository"].get("issues"):
         print(f"  └─ No open issues found.")
@@ -208,7 +241,6 @@ def fetch_external_repo_issues(repo_full_name):
             continue
             
         if required_label:
-            # Normalize and extract label strings
             node_labels = [
                 l["name"].strip().lower() 
                 for l in node.get("labels", {}).get("nodes", []) 
@@ -217,7 +249,6 @@ def fetch_external_repo_issues(repo_full_name):
             
             target_label = required_label.strip().lower()
             
-            # STRICT CHECK: Ensure target_label exists as an exact string element in the array
             if target_label not in node_labels:
                 print(f"  └─ [EXCLUDED] Issue #{node['number']} missing exact label '{required_label}'")
                 continue
@@ -259,13 +290,13 @@ def compute_priority_score(issue):
 def sync_to_github_project(project_id, field_id, issue_node_id, score):
     add_item_mutation = """
     mutation($projectId: ID!, $contentId: ID!) {
-      addProjectV2ItemById(input: {projectId: $projectId, contentId: $contentId}) {
+      addProjectV2ItemByNodeId(input: {projectId: $projectId, contentId: $contentId}) {
         item { id }
       }
     }
     """
-    item_data = run_graphql(add_item_mutation, {"projectId": project_id, "contentId": issue_node_id})
-    item_id = item_data["addProjectV2ItemById"]["item"]["id"]
+    item_data = run_project_graphql(add_item_mutation, {"projectId": project_id, "contentId": issue_node_id})
+    item_id = item_data["addProjectV2ItemByNodeId"]["item"]["id"]
 
     update_field_mutation = """
     mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $value: Float!) {
@@ -281,7 +312,7 @@ def sync_to_github_project(project_id, field_id, issue_node_id, score):
       }
     }
     """
-    run_graphql(update_field_mutation, {
+    run_project_graphql(update_field_mutation, {
         "projectId": project_id,
         "itemId": item_id,
         "fieldId": field_id,

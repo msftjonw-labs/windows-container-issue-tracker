@@ -2,8 +2,8 @@ name: "Calculate Issue Priority Scores"
 
 on:
   schedule:
-    - cron: "0 */6 * * *" # Triggers automatically every 6 hours
-  workflow_dispatch: # Enables manual trigger button in GitHub UI
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
 
 jobs:
   score-issues:
@@ -18,7 +18,6 @@ jobs:
         with:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }} # Explicitly scope token to user msftjonw
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -30,17 +29,15 @@ jobs:
 
       - name: Run Scoring Script
         env:
-          # GitHub App Installation Token for both reading public repos & writing to Project v2
-          GITHUB_TOKEN: ${{ steps.generate-app-token.outputs.token }}
+          # 1. Ephemeral App Token for querying public/enterprise issues
+          APP_PUBLIC_READ_TOKEN: ${{ steps.generate-app-token.outputs.token }}
 
-          # YOUR PERSONAL GITHUB USERNAME
+          # 2. Personal PAT for writing to user(login: "msftjonw") Project v2
+          PERSONAL_PROJECT_PAT: ${{ secrets.GH_PROJECTS_PAT }}
+
           ORGANIZATION_NAME: "msftjonw"
-
-          # YOUR PERSONAL PROJECT V2 BOARD NUMBER
           PROJECT_NUMBER: 1
           CUSTOM_FIELD_NAME: "Priority Score"
-
-          # PUBLIC TARGET REPOSITORIES
           TARGET_REPOS: >-
             kubernetes/kubernetes,
             kubernetes/enhancements,
