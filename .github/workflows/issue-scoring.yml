@@ -20,22 +20,22 @@ jobs:
       - name: Install Dependencies
         run: pip install requests
 
+      - name: Generate GitHub App Token
+        id: generate-app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
       - name: Run Scoring Script
         env:
-          # PAT for writing to your Personal GitHub Project v2 board
-          GH_PAT: ${{ secrets.GH_PROJECTS_PAT }}
+          GITHUB_APP_TOKEN: ${{ steps.generate-app-token.outputs.token }}
+          ORGANIZATION_NAME: "msftjonw-labs"
 
-          # PAT for querying Microsoft/Azure enterprise public repositories
-          # MSFT_PAT: ${{ secrets.MSFT_ENTERPRISE_PAT }}
-
-          # YOUR PERSONAL GITHUB USERNAME
-          ORGANIZATION_NAME: "msftjonw"
-
-          # YOUR PERSONAL PROJECT V2 BOARD NUMBER
           PROJECT_NUMBER: 1
           CUSTOM_FIELD_NAME: "Priority Score"
 
-          # PUBLIC TARGET REPOSITORIES
           TARGET_REPOS: >-
             kubernetes/kubernetes,
             kubernetes/enhancements,

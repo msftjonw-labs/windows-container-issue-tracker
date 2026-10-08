@@ -105,6 +105,30 @@ class FetchExternalRepoIssuesTests(unittest.TestCase):
             calculate_scores.fetch_external_repo_issues("microsoft/windows-containers")
 
 
+class GetProjectAndFieldIdsTests(unittest.TestCase):
+    @patch("scripts.calculate_scores.run_graphql")
+    def test_looks_up_organization_project_and_priority_field(self, graphql):
+        graphql.return_value = {
+            "organization": {
+                "projectV2": {
+                    "id": "project-1",
+                    "fields": {"nodes": [
+                        {"id": "field-1", "name": "Priority Score"}
+                    ]}
+                }
+            }
+        }
+
+        project_id, field_id = calculate_scores.get_project_and_field_ids()
+
+        self.assertEqual((project_id, field_id), ("project-1", "field-1"))
+        self.assertIn("organization(login: $organization)", graphql.call_args.args[0])
+        self.assertEqual(graphql.call_args.args[1], {
+            "organization": calculate_scores.GITHUB_ORGANIZATION,
+            "number": calculate_scores.PROJECT_NUMBER
+        })
+
+
 class SyncToGithubProjectTests(unittest.TestCase):
     @patch("scripts.calculate_scores.run_graphql")
     def test_adds_issue_with_supported_mutation_then_updates_score(self, graphql):
