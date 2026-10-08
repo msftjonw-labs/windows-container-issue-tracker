@@ -50,8 +50,5 @@ jobs:
             moby/moby,
             envoyproxy/envoy,
             argoproj/argo-cd,
-            docker/for-win,
-            microsoft/Windows-Containers,
-            microsoft/windows-container-tools,
-            Azure/AKS
+            docker/for-win
         run: python scripts/calculate_scores.py
