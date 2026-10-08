@@ -27,7 +27,7 @@ jobs:
         with:
           client-id: ${{ vars.APP_CLIENT_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
-          # owner: ${{ github.repository_owner }}
+          owner: ${{ github.repository_owner }}
 
       - name: Run Scoring Script
         env:
