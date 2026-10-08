@@ -258,13 +258,13 @@ def fetch_external_repo_issues(repo_full_name):
     query = """
     query($owner: String!, $repo: String!) {
       repository(owner: $owner, name: $repo) {
-        issues(states: OPEN, first: 35, orderBy: {field: UPDATED_AT, direction: DESC}) {
+        issues(states: OPEN, first: 50, orderBy: {field: UPDATED_AT, direction: DESC}) {
           nodes {
             id
             number
             title
             url
-            labels(first: 20) {
+            labels(first: 25) {
               nodes { name }
             }
             comments(first: 25) {
