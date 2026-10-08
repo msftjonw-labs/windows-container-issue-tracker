@@ -5,7 +5,7 @@ import requests
 # -------------------------------------------------------------------
 # Configuration & Environment Setup
 # -------------------------------------------------------------------
-GH_TOKEN = os.getenv("GH_PAT")
+GH_TOKEN = os.getenv("GITHUB_TOKEN")
 GITHUB_USER = os.getenv("ORGANIZATION_NAME")  # Your personal GitHub username
 PROJECT_NUMBER = int(os.getenv("PROJECT_NUMBER", "1"))
 FIELD_NAME = os.getenv("CUSTOM_FIELD_NAME", "Priority Score")

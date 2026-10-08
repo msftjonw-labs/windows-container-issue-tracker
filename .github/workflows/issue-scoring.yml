@@ -10,10 +10,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
+
+      - name: Generate GitHub App Token
+        id: generate-app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
@@ -22,11 +29,8 @@ jobs:
 
       - name: Run Scoring Script
         env:
-          # PAT for writing to your Personal GitHub Project v2 board
-          GH_PAT: ${{ secrets.GH_PROJECTS_PAT }}
-
-          # PAT for querying Microsoft/Azure enterprise public repositories
-          # MSFT_PAT: ${{ secrets.MSFT_ENTERPRISE_PAT }}
+          # GitHub App Installation Token for both reading public repos & writing to Project v2
+          GITHUB_TOKEN: ${{ steps.generate-app-token.outputs.token }}
 
           # YOUR PERSONAL GITHUB USERNAME
           ORGANIZATION_NAME: "msftjonw"
