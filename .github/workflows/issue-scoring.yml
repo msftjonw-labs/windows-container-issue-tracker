@@ -2,8 +2,8 @@ name: "Calculate Issue Priority Scores"
 
 on:
   schedule:
-    - cron: "0 */6 * * *"
-  workflow_dispatch:
+    - cron: "0 */6 * * *" # Runs every 6 hours
+  workflow_dispatch: # Allows manual trigger from GitHub UI
 
 jobs:
   score-issues:
@@ -11,13 +11,6 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-
-      - name: Generate GitHub App Token
-        id: generate-app-token
-        uses: actions/create-github-app-token@v1
-        with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -27,17 +20,26 @@ jobs:
       - name: Install Dependencies
         run: pip install requests
 
+      # Generates a dynamic token for msftjonw-labs organization and public repo reads
+      - name: Generate GitHub App Token
+        id: generate-app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
       - name: Run Scoring Script
         env:
-          # 1. Ephemeral App Token for querying public/enterprise issues
-          APP_PUBLIC_READ_TOKEN: ${{ steps.generate-app-token.outputs.token }}
+          # Single App Token used for both public repository queries and Project v2 updates
+          GITHUB_APP_TOKEN: ${{ steps.generate-app-token.outputs.token }}
 
-          # 2. Personal PAT for writing to user(login: "msftjonw") Project v2
-          PERSONAL_PROJECT_PAT: ${{ secrets.GH_PROJECTS_PAT }}
-
-          ORGANIZATION_NAME: "msftjonw"
+          # Organization & Project details
+          ORGANIZATION_NAME: "msftjonw-labs"
           PROJECT_NUMBER: 1
           CUSTOM_FIELD_NAME: "Priority Score"
+
+          # Target public repositories
           TARGET_REPOS: >-
             kubernetes/kubernetes,
             kubernetes/enhancements,
