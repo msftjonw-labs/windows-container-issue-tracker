@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import requests
 
 # -------------------------------------------------------------------
@@ -29,18 +30,33 @@ LABEL_WEIGHTS = {
 GH_GRAPHQL_URL = "https://api.github.com/graphql"
 headers = {"Authorization": f"Bearer {GH_TOKEN}"}
 
+MAX_GRAPHQL_ATTEMPTS = 3
+TRANSIENT_STATUS_CODES = {500, 502, 503, 504}
+TRANSIENT_ERROR_MARKERS = ("something went wrong while executing your query", "timeout")
+ISSUE_PAGE_SIZE = 10
+MAX_ISSUES_PER_REPO = 100
+
 def run_graphql(query, variables=None):
-    response = requests.post(
-        GH_GRAPHQL_URL, 
-        json={"query": query, "variables": variables}, 
-        headers=headers
-    )
-    if response.status_code != 200:
-        raise Exception(f"GraphQL query failed ({response.status_code}): {response.text}")
-    res_data = response.json()
-    if "errors" in res_data:
-        raise Exception(f"GraphQL Errors: {res_data['errors']}")
-    return res_data["data"]
+    for attempt in range(1, MAX_GRAPHQL_ATTEMPTS + 1):
+        response = requests.post(
+            GH_GRAPHQL_URL,
+            json={"query": query, "variables": variables},
+            headers=headers
+        )
+        if response.status_code != 200:
+            error = Exception(f"GraphQL query failed ({response.status_code}): {response.text}")
+            transient = response.status_code in TRANSIENT_STATUS_CODES
+        else:
+            res_data = response.json()
+            if "errors" not in res_data:
+                return res_data["data"]
+            error = Exception(f"GraphQL Errors: {res_data['errors']}")
+            transient = any(m in str(res_data["errors"]).lower() for m in TRANSIENT_ERROR_MARKERS)
+        if not transient or attempt == MAX_GRAPHQL_ATTEMPTS:
+            raise error
+        delay = 2 ** (attempt - 1)
+        print(f"  └─ Transient GraphQL failure (attempt {attempt}/{MAX_GRAPHQL_ATTEMPTS}); retrying in {delay}s...")
+        time.sleep(delay)
 
 # -------------------------------------------------------------------
 # 1. Personal GitHub Project v2 Discovery & Board Cleanup
@@ -170,17 +186,18 @@ def fetch_external_repo_issues(repo_full_name):
     else:
         print(f"  └─ Fetching All Open Issues (No Label Filter)")
 
-    # Direct repository node query to avoid search tokenizer behavior
+    # Direct repository node query to avoid search tokenizer behavior.
+    # Issues are fetched in small pages to keep each query lightweight and avoid gateway timeouts.
     query = """
-    query($owner: String!, $repo: String!) {
+    query($owner: String!, $repo: String!, $first: Int!, $after: String) {
       repository(owner: $owner, name: $repo) {
-        issues(states: OPEN, first: 100, orderBy: {field: UPDATED_AT, direction: DESC}) {
+        issues(states: OPEN, first: $first, after: $after, orderBy: {field: UPDATED_AT, direction: DESC}) {
           nodes {
             id
             number
             title
             url
-            labels(first: 100) {
+            labels(first: 50) {
               nodes { name }
             }
             comments(first: 100) {
@@ -189,40 +206,56 @@ def fetch_external_repo_issues(repo_full_name):
               }
             }
           }
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
         }
       }
     }
     """
-    
-    data = run_graphql(query, {"owner": owner, "repo": repo})
-    
-    if not data or not data.get("repository") or not data["repository"].get("issues"):
-        print(f"  └─ No open issues found.")
-        return []
 
-    raw_nodes = data["repository"]["issues"]["nodes"]
     verified_issues = []
+    fetched = 0
+    after = None
 
-    for node in raw_nodes:
-        if not node or "id" not in node:
-            continue
-            
-        if required_label:
-            # Normalize and extract label strings
-            node_labels = [
-                l["name"].strip().lower() 
-                for l in node.get("labels", {}).get("nodes", []) 
-                if l and "name" in l
-            ]
-            
-            target_label = required_label.strip().lower()
-            
-            # STRICT CHECK: Ensure target_label exists as an exact string element in the array
-            if target_label not in node_labels:
-                print(f"  └─ [EXCLUDED] Issue #{node['number']} missing exact label '{required_label}'")
+    while fetched < MAX_ISSUES_PER_REPO:
+        data = run_graphql(query, {"owner": owner, "repo": repo, "first": ISSUE_PAGE_SIZE, "after": after})
+
+        if not data or not data.get("repository") or not data["repository"].get("issues"):
+            if fetched == 0:
+                print(f"  └─ No open issues found.")
+            break
+
+        issues = data["repository"]["issues"]
+        raw_nodes = issues.get("nodes") or []
+        fetched += len(raw_nodes)
+
+        for node in raw_nodes:
+            if not node or "id" not in node:
                 continue
 
-        verified_issues.append(node)
+            if required_label:
+                # Normalize and extract label strings
+                node_labels = [
+                    l["name"].strip().lower()
+                    for l in node.get("labels", {}).get("nodes", [])
+                    if l and "name" in l
+                ]
+
+                target_label = required_label.strip().lower()
+
+                # STRICT CHECK: Ensure target_label exists as an exact string element in the array
+                if target_label not in node_labels:
+                    print(f"  └─ [EXCLUDED] Issue #{node.get('number')} missing exact label '{required_label}'")
+                    continue
+
+            verified_issues.append(node)
+
+        page_info = issues.get("pageInfo") or {}
+        if not page_info.get("hasNextPage") or not page_info.get("endCursor"):
+            break
+        after = page_info["endCursor"]
 
     return verified_issues
 
