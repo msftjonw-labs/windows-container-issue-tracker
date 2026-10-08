@@ -290,13 +290,13 @@ def compute_priority_score(issue):
 def sync_to_github_project(project_id, field_id, issue_node_id, score):
     add_item_mutation = """
     mutation($projectId: ID!, $contentId: ID!) {
-      addProjectV2ItemByNodeId(input: {projectId: $projectId, contentId: $contentId}) {
+      addProjectV2ItemById(input: {projectId: $projectId, contentId: $contentId}) {
         item { id }
       }
     }
     """
     item_data = run_project_graphql(add_item_mutation, {"projectId": project_id, "contentId": issue_node_id})
-    item_id = item_data["addProjectV2ItemByNodeId"]["item"]["id"]
+    item_id = item_data["addProjectV2ItemById"]["item"]["id"]
 
     update_field_mutation = """
     mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $value: Float!) {
