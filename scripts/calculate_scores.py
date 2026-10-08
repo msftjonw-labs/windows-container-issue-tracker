@@ -48,10 +48,11 @@ headers_project = {
     "Accept": "application/vnd.github+json"
 }
 
-def run_public_graphql(query, variables=None, max_retries=3, backoff_factor=2):
+def run_public_graphql(query, variables=None, max_retries=5, backoff_factor=3):
     """
     Executes GraphQL queries against public repositories using the GitHub App token.
     Retries automatically on HTTP 500/502/503/504 transient errors up to max_retries.
+    Uses a 60-second request timeout and exponential backoff.
     """
     for attempt in range(1, max_retries + 1):
         try:
@@ -59,7 +60,7 @@ def run_public_graphql(query, variables=None, max_retries=3, backoff_factor=2):
                 GH_GRAPHQL_URL, 
                 json={"query": query, "variables": variables}, 
                 headers=headers_public,
-                timeout=30
+                timeout=60
             )
             
             # Retry on 504 Gateway Timeout and server error statuses
@@ -253,20 +254,21 @@ def fetch_external_repo_issues(repo_full_name):
     else:
         print(f"  └─ Fetching All Open Issues (No Label Filter)")
 
-    # Query public repositories using APP_PUBLIC_READ_TOKEN
+    # Optimized Query Scope to Prevent HTTP 504 Timeouts
     query = """
     query($owner: String!, $repo: String!) {
       repository(owner: $owner, name: $repo) {
-        issues(states: OPEN, first: 100, orderBy: {field: UPDATED_AT, direction: DESC}) {
+        issues(states: OPEN, first: 35, orderBy: {field: UPDATED_AT, direction: DESC}) {
           nodes {
             id
             number
             title
             url
-            labels(first: 100) {
+            labels(first: 20) {
               nodes { name }
             }
-            comments(first: 100) {
+            comments(first: 25) {
+              totalCount
               nodes {
                 author { login }
               }
@@ -311,14 +313,15 @@ def fetch_external_repo_issues(repo_full_name):
 # 3. Custom Weighted Priority Calculation
 # -------------------------------------------------------------------
 def compute_priority_score(issue):
-    comments = issue.get("comments", {}).get("nodes", [])
+    comments_obj = issue.get("comments", {})
+    comments_nodes = comments_obj.get("nodes", [])
     
-    # Metric A: Unique Commenters
-    authors = {c["author"]["login"] for c in comments if c and c.get("author")}
+    # Metric A: Unique Commenters (from fetched sample)
+    authors = {c["author"]["login"] for c in comments_nodes if c and c.get("author")}
     unique_user_count = len(authors)
     
-    # Metric B: Total Comment Count
-    total_comments = len(comments)
+    # Metric B: Total Comment Count (uses aggregate totalCount if available)
+    total_comments = comments_obj.get("totalCount", len(comments_nodes))
     
     # Metric C: Label Weights
     labels = issue.get("labels", {}).get("nodes", [])
