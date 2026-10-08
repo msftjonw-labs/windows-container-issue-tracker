@@ -23,7 +23,7 @@ jobs:
       # Generates a dynamic token for msftjonw-labs organization and public repo reads
       - name: Generate GitHub App Token
         id: generate-app-token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ vars.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
