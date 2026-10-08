@@ -105,6 +105,45 @@ class FetchExternalRepoIssuesTests(unittest.TestCase):
             calculate_scores.fetch_external_repo_issues("microsoft/windows-containers")
 
 
+class SyncToGithubProjectTests(unittest.TestCase):
+    @patch("scripts.calculate_scores.run_graphql")
+    def test_adds_issue_with_supported_mutation_then_updates_score(self, graphql):
+        graphql.side_effect = [
+            {"addProjectV2ItemById": {"item": {"id": "item-1"}}},
+            {"updateProjectV2ItemFieldValue": {"projectV2Item": {"id": "item-1"}}}
+        ]
+
+        calculate_scores.sync_to_github_project("project-1", "field-1", "issue-1", 11.5)
+
+        self.assertEqual(graphql.call_count, 2)
+        add_call, update_call = graphql.call_args_list
+        self.assertIn(
+            "addProjectV2ItemById(input: {projectId: $projectId, contentId: $contentId})",
+            add_call.args[0]
+        )
+        self.assertNotIn("addProjectV2ItemByNodeId", add_call.args[0])
+        self.assertEqual(add_call.args[1], {
+            "projectId": "project-1", "contentId": "issue-1"
+        })
+        self.assertIn("updateProjectV2ItemFieldValue(", update_call.args[0])
+        self.assertIn("value: { number: $value }", update_call.args[0])
+        self.assertEqual(update_call.args[1], {
+            "projectId": "project-1",
+            "itemId": "item-1",
+            "fieldId": "field-1",
+            "value": 11.5
+        })
+
+    @patch("scripts.calculate_scores.run_graphql")
+    def test_add_failure_does_not_attempt_score_update(self, graphql):
+        graphql.side_effect = Exception("GraphQL Errors: undefinedField")
+
+        with self.assertRaisesRegex(Exception, "undefinedField"):
+            calculate_scores.sync_to_github_project("project-1", "field-1", "issue-1", 11.5)
+
+        graphql.assert_called_once()
+
+
 class RunGraphqlTests(unittest.TestCase):
     @patch("scripts.calculate_scores.time.sleep")
     @patch("scripts.calculate_scores.requests.post")
