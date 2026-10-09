@@ -2,7 +2,7 @@ name: "Calculate Issue Priority Scores"
 
 on:
   schedule:
-    - cron: "0 */6 * * *" # Runs every 6 hours
+    - cron: '0 17 * * 1' # Runs every Monday at 17:00 UTC
   workflow_dispatch: # Allows manual trigger from GitHub UI
 
 jobs:
@@ -47,6 +47,7 @@ jobs:
             kubernetes/kubernetes,
             kubernetes/enhancements,
             kubernetes/community,
+            kubernetes/minikube,
             helm/helm,
             prometheus/prometheus,
             containerd/containerd,

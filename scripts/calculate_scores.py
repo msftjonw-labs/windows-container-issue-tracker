@@ -35,10 +35,11 @@ LABEL_WEIGHTS = {
     "feature-request": 2.0
 }
 
+# Updated Repository Boosts to Surface Core Workloads First
 REPO_WEIGHTS = {
-    "microsoft/windows-containers": 25.0,
-    "microsoft/windows-container-tools": 25.0,
-    "azure/aks": 15.0,
+    "microsoft/windows-containers": 100.0,
+    "microsoft/windows-container-tools": 100.0,
+    "azure/aks": 75.0,
     "kubernetes/kubernetes": 0.0,
     "kubernetes/enhancements": 0.0,
     "kubernetes/community": 0.0,
