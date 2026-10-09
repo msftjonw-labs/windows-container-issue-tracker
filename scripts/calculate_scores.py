@@ -187,12 +187,10 @@ def fetch_external_repo_issues(repo_full_name):
     required_label = get_required_label_for_repo(repo_full_name)
     
     if required_label:
-        print(f"  └─ Strict Label Requirement: Exact match for '{required_label}'")
+        print(f"  └─ Strict Label Requirement: Exact full string match for '{required_label}'")
     else:
         print(f"  └─ Fetching All Open Issues (No Label Filter)")
 
-    # Direct repository node query to avoid search tokenizer behavior.
-    # Issues are fetched in small pages to keep each query lightweight and avoid gateway timeouts.
     query = """
     query($owner: String!, $repo: String!, $first: Int!, $after: String) {
       repository(owner: $owner, name: $repo) {
@@ -241,8 +239,8 @@ def fetch_external_repo_issues(repo_full_name):
                 continue
 
             if required_label:
-                # Normalize and extract label strings
-                node_labels = [
+                # Extract exact label strings, preserving internal slashes
+                raw_labels = [
                     l["name"].strip().lower()
                     for l in node.get("labels", {}).get("nodes", [])
                     if l and "name" in l
@@ -250,9 +248,9 @@ def fetch_external_repo_issues(repo_full_name):
 
                 target_label = required_label.strip().lower()
 
-                # STRICT CHECK: Ensure target_label exists as an exact string element in the array
-                if target_label not in node_labels:
-                    print(f"  └─ [EXCLUDED] Issue #{node.get('number')} missing exact label '{required_label}'")
+                # STRICT FULL-STRING COMPARISON: Must match target_label exactly
+                if not any(label == target_label for label in raw_labels):
+                    print(f"  └─ [EXCLUDED] Issue #{node.get('number')} missing exact label '{required_label}' (Found: {raw_labels})")
                     continue
 
             verified_issues.append(node)
