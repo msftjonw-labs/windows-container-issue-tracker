@@ -35,7 +35,7 @@ LABEL_WEIGHTS = {
     "feature-request": 2.0
 }
 
-# Updated Repository Boosts to Surface Core Workloads First
+# Repository Priority Boosts
 REPO_WEIGHTS = {
     "microsoft/windows-containers": 100.0,
     "microsoft/windows-container-tools": 100.0,
@@ -60,9 +60,9 @@ TRANSIENT_STATUS_CODES = {500, 502, 503, 504}
 TRANSIENT_ERROR_MARKERS = ("something went wrong while executing your query", "timeout")
 MAX_ISSUES_PER_REPO = 100
 
-# 1-year cutoff timestamp for active discussion check
-ONE_YEAR_AGO = datetime.now(timezone.utc) - timedelta(days=365)
-SINCE_ONE_YEAR_TIMESTAMP = ONE_YEAR_AGO.isoformat()
+# 730-day (2-year) cutoff timestamp for active discussion check
+TWO_YEARS_AGO = datetime.now(timezone.utc) - timedelta(days=730)
+SINCE_TWO_YEARS_TIMESTAMP = TWO_YEARS_AGO.isoformat()
 
 def run_graphql(query, variables=None):
     for attempt in range(1, MAX_ATTEMPTS + 1):
@@ -172,7 +172,7 @@ def clear_project_board(project_id):
     print("Project board pre-clearing complete.\n")
 
 # -------------------------------------------------------------------
-# 2. Label Resolution & Fetching
+# 2. Label Resolution & Fetching (730-Day Activity Window)
 # -------------------------------------------------------------------
 def get_required_label_for_repo(repo_full_name):
     repo_lower = repo_full_name.lower()
@@ -216,7 +216,7 @@ def fetch_issue_graphql_details(node_id):
     return data.get("node")
 
 def fetch_external_repo_issues(repo_full_name):
-    parts = repo_full_name.split("/")
+    parts = repo_full_name.strip().split("/")
     if len(parts) != 2:
         print(f"Skipping invalid target format '{repo_full_name}'. Expected 'owner/repo'.")
         return []
@@ -230,14 +230,15 @@ def fetch_external_repo_issues(repo_full_name):
         "per_page": 100,
         "sort": "updated",
         "direction": "desc",
-        "since": SINCE_ONE_YEAR_TIMESTAMP
+        "since": SINCE_TWO_YEARS_TIMESTAMP
     }
 
-    if required_label:
-        print(f"  └─ Exact Label Requirement: '{required_label}' | Activity Threshold: >= {MIN_RECENT_COMMENTS} comments in past year")
+    # Remove rigid REST label parameter for Azure/AKS to handle varied label conventions client-side
+    if required_label and repo_full_name.lower() != "azure/aks":
+        print(f"  └─ Exact Label Requirement: '{required_label}' | Activity Threshold: >= {MIN_RECENT_COMMENTS} comments in past 730 days")
         params["labels"] = required_label
     else:
-        print(f"  └─ Fetching All Open Issues | Activity Threshold: >= {MIN_RECENT_COMMENTS} comments in past year")
+        print(f"  └─ Fetching Open Issues | Activity Threshold: >= {MIN_RECENT_COMMENTS} comments in past 730 days")
 
     response = requests.get(url, headers=headers, params=params)
     if response.status_code != 200:
@@ -254,33 +255,35 @@ def fetch_external_repo_issues(repo_full_name):
         if len(verified_issues) >= MAX_ISSUES_PER_REPO:
             break
 
-        # Verify Exact Match against raw issue label names
         label_names = [l["name"].strip().lower() for l in issue.get("labels", []) if isinstance(l, dict) and "name" in l]
         
-        if required_label:
+        # Label matching verification
+        if repo_full_name.lower() == "azure/aks":
+            if not any("win" in l for l in label_names):
+                continue
+        elif required_label:
             target = required_label.strip().lower()
             if target not in label_names:
                 print(f"  └─ [EXCLUDED - LABEL MISMATCH] Issue #{issue['number']} missing exact label '{required_label}'")
                 continue
 
-        # Fetch GraphQL details
         gql_details = fetch_issue_graphql_details(issue["node_id"])
         if not gql_details:
             continue
 
         comments = gql_details.get("comments", {}).get("nodes", [])
         
-        # Count comments added in the past 1 year
+        # Count comments created in the past 730 days (2 years)
         recent_comments_count = 0
         for comment in comments:
             if comment and comment.get("createdAt"):
                 comment_dt = datetime.fromisoformat(comment["createdAt"].replace("Z", "+00:00"))
-                if comment_dt >= ONE_YEAR_AGO:
+                if comment_dt >= TWO_YEARS_AGO:
                     recent_comments_count += 1
 
-        # Activity Filter Check
+        # Activity Filter Check against 730-day window
         if recent_comments_count < MIN_RECENT_COMMENTS:
-            print(f"  └─ [EXCLUDED - INACTIVE] Issue #{issue['number']} has {recent_comments_count} comment(s) in past year (Threshold: >= {MIN_RECENT_COMMENTS})")
+            print(f"  └─ [EXCLUDED - INACTIVE] Issue #{issue['number']} has {recent_comments_count} comment(s) in past 730 days (Threshold: >= {MIN_RECENT_COMMENTS})")
             continue
 
         gql_details["raw_label_names"] = label_names
@@ -320,7 +323,7 @@ def compute_priority_score(issue):
 # 4. Project v2 Mutation Sync (Score + Source Text Column)
 # -------------------------------------------------------------------
 def sync_to_github_project(project_id, score_field_id, repo_field_id, issue_node_id, repo_full_name, score):
-    # 1. Add item to project (Includes item type inspection)
+    # 1. Add item to project
     add_item_mutation = """
     mutation($projectId: ID!, $contentId: ID!) {
       addProjectV2ItemById(input: {projectId: $projectId, contentId: $contentId}) {
@@ -397,7 +400,7 @@ def sync_to_github_project(project_id, score_field_id, repo_field_id, issue_node
 # -------------------------------------------------------------------
 def main():
     print(f"Connecting to GitHub Projects (v2) for organization '{ORGANIZATION_NAME}'...")
-    print(f"Filtering issues with >= {MIN_RECENT_COMMENTS} comments since: {SINCE_ONE_YEAR_TIMESTAMP[:10]}")
+    print(f"Filtering issues with >= {MIN_RECENT_COMMENTS} comments since: {SINCE_TWO_YEARS_TIMESTAMP[:10]}")
     project_id, score_field_id, repo_field_id = get_project_and_field_ids()
 
     # Step A: Clear board
