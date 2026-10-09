@@ -64,6 +64,12 @@ MAX_ISSUES_PER_REPO = 100
 TWO_YEARS_AGO = datetime.now(timezone.utc) - timedelta(days=730)
 SINCE_TWO_YEARS_TIMESTAMP = TWO_YEARS_AGO.isoformat()
 
+MAX_GRAPHQL_ATTEMPTS = 3
+TRANSIENT_STATUS_CODES = {500, 502, 503, 504}
+TRANSIENT_ERROR_MARKERS = ("something went wrong while executing your query", "timeout")
+ISSUE_PAGE_SIZE = 10
+MAX_ISSUES_PER_REPO = 100
+
 def run_graphql(query, variables=None):
     for attempt in range(1, MAX_ATTEMPTS + 1):
         response = requests.post(
@@ -247,6 +253,8 @@ def fetch_external_repo_issues(repo_full_name):
 
     raw_issues = response.json()
     verified_issues = []
+    fetched = 0
+    after = None
 
     for issue in raw_issues:
         if "pull_request" in issue:
