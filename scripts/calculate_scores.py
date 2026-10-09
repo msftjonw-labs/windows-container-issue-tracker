@@ -29,18 +29,21 @@ LABEL_WEIGHTS = {
     "feature-request": 2.0
 }
 
-# API Client Setup
+# API Endpoint Configurations
 GH_GRAPHQL_URL = "https://api.github.com/graphql"
-headers = {"Authorization": f"Bearer {GH_TOKEN}"}
+GH_REST_URL = "https://api.github.com"
+headers = {
+    "Authorization": f"Bearer {GH_TOKEN}",
+    "Accept": "application/vnd.github+json"
+}
 
-MAX_GRAPHQL_ATTEMPTS = 3
+MAX_ATTEMPTS = 3
 TRANSIENT_STATUS_CODES = {500, 502, 503, 504}
 TRANSIENT_ERROR_MARKERS = ("something went wrong while executing your query", "timeout")
-ISSUE_PAGE_SIZE = 10
 MAX_ISSUES_PER_REPO = 100
 
 def run_graphql(query, variables=None):
-    for attempt in range(1, MAX_GRAPHQL_ATTEMPTS + 1):
+    for attempt in range(1, MAX_ATTEMPTS + 1):
         response = requests.post(
             GH_GRAPHQL_URL,
             json={"query": query, "variables": variables},
@@ -55,10 +58,10 @@ def run_graphql(query, variables=None):
                 return res_data["data"]
             error = Exception(f"GraphQL Errors: {res_data['errors']}")
             transient = any(m in str(res_data["errors"]).lower() for m in TRANSIENT_ERROR_MARKERS)
-        if not transient or attempt == MAX_GRAPHQL_ATTEMPTS:
+        if not transient or attempt == MAX_ATTEMPTS:
             raise error
         delay = 2 ** (attempt - 1)
-        print(f"  └─ Transient GraphQL failure (attempt {attempt}/{MAX_GRAPHQL_ATTEMPTS}); retrying in {delay}s...")
+        print(f"  └─ Transient GraphQL failure (attempt {attempt}/{MAX_ATTEMPTS}); retrying in {delay}s...")
         time.sleep(delay)
 
 # -------------------------------------------------------------------
@@ -139,7 +142,7 @@ def clear_project_board(project_id):
     print("Project board pre-clearing complete.\n")
 
 # -------------------------------------------------------------------
-# 2. Strict Label Mapping & Direct Search API Querying
+# 2. Strict Exact-Label Fetching via GitHub REST API
 # -------------------------------------------------------------------
 def get_required_label_for_repo(repo_full_name):
     repo_lower = repo_full_name.lower()
@@ -160,90 +163,86 @@ def get_required_label_for_repo(repo_full_name):
     else:
         return "sig/windows"
 
+def fetch_issue_graphql_details(node_id):
+    """
+    Fetches GraphQL node details (comments and node ID) needed for scoring & project sync.
+    """
+    query = """
+    query($id: ID!) {
+      node(id: $id) {
+        ... on Issue {
+          id
+          number
+          title
+          url
+          comments(first: 100) {
+            nodes {
+              author { login }
+            }
+          }
+        }
+      }
+    }
+    """
+    data = run_graphql(query, {"id": node_id})
+    return data.get("node")
+
 def fetch_external_repo_issues(repo_full_name):
     parts = repo_full_name.split("/")
     if len(parts) != 2:
         print(f"Skipping invalid target format '{repo_full_name}'. Expected 'owner/repo'.")
         return []
 
+    owner, repo = parts[0], parts[1]
     required_label = get_required_label_for_repo(repo_full_name)
     
+    url = f"{GH_REST_URL}/repos/{owner}/{repo}/issues"
+    params = {
+        "state": "open",
+        "per_page": 100,
+        "sort": "updated",
+        "direction": "desc"
+    }
+
     if required_label:
-        print(f"  └─ Strict Label Requirement: Exact search query for label:\"{required_label}\"")
-        # Exact quote label search in GitHub Search API prevents token splitting
-        search_query = f'repo:{repo_full_name} is:issue is:open label:"{required_label}"'
+        print(f"  └─ Strict Label Requirement: REST API exact label parameter '{required_label}'")
+        params["labels"] = required_label
     else:
         print(f"  └─ Fetching All Open Issues (No Label Filter)")
-        search_query = f'repo:{repo_full_name} is:issue is:open'
 
-    graphql_query = """
-    query($searchQuery: String!, $first: Int!, $after: String) {
-      search(query: $searchQuery, type: ISSUE, first: $first, after: $after) {
-        issueCount
-        nodes {
-          ... on Issue {
-            id
-            number
-            title
-            url
-            labels(first: 50) {
-              nodes { name }
-            }
-            comments(first: 100) {
-              nodes {
-                author { login }
-              }
-            }
-          }
-        }
-        pageInfo {
-          hasNextPage
-          endCursor
-        }
-      }
-    }
-    """
+    response = requests.get(url, headers=headers, params=params)
+    if response.status_code != 200:
+        print(f"  └─ Failed to fetch issues from REST API ({response.status_code}): {response.text}")
+        return []
 
+    raw_issues = response.json()
     verified_issues = []
-    fetched = 0
-    after = None
 
-    while fetched < MAX_ISSUES_PER_REPO:
-        data = run_graphql(graphql_query, {"searchQuery": search_query, "first": ISSUE_PAGE_SIZE, "after": after})
+    for issue in raw_issues:
+        # Ignore Pull Requests (GitHub REST API includes PRs in the issues endpoint)
+        if "pull_request" in issue:
+            continue
 
-        if not data or not data.get("search") or not data["search"].get("nodes"):
-            if fetched == 0:
-                print(f"  └─ No matching issues found.")
+        if len(verified_issues) >= MAX_ISSUES_PER_REPO:
             break
 
-        search_result = data["search"]
-        raw_nodes = search_result.get("nodes") or []
-        fetched += len(raw_nodes)
-
-        for node in raw_nodes:
-            if not node or "id" not in node:
+        # Double Check Exact Match against raw issue label names
+        label_names = [l["name"].strip().lower() for l in issue.get("labels", []) if isinstance(l, dict) and "name" in l]
+        
+        if required_label:
+            target = required_label.strip().lower()
+            if target not in label_names:
+                print(f"  └─ [EXCLUDED] Issue #{issue['number']} missing exact label '{required_label}' (Labels: {label_names})")
                 continue
 
-            # Strict secondary verification on returned issue labels
-            if required_label:
-                raw_labels = [
-                    l["name"].strip().lower()
-                    for l in node.get("labels", {}).get("nodes", [])
-                    if l and "name" in l
-                ]
-                target_label = required_label.strip().lower()
+        # Enrich issue with GraphQL details (comments & node_id)
+        gql_details = fetch_issue_graphql_details(issue["node_id"])
+        if not gql_details:
+            continue
 
-                # Double check that target label is an exact whole-string match in raw labels
-                if not any(label == target_label for label in raw_labels):
-                    print(f"  └─ [EXCLUDED] Issue #{node.get('number')} failed exact string check (Found: {raw_labels})")
-                    continue
-
-            verified_issues.append(node)
-
-        page_info = search_result.get("pageInfo") or {}
-        if not page_info.get("hasNextPage") or not page_info.get("endCursor"):
-            break
-        after = page_info["endCursor"]
+        # Attach raw labels from REST payload to ensure scoring reads full set
+        gql_details["raw_label_names"] = label_names
+        verified_issues.append(gql_details)
 
     return verified_issues
 
@@ -258,8 +257,8 @@ def compute_priority_score(issue):
     
     total_comments = len(comments)
     
-    labels = issue.get("labels", {}).get("nodes", [])
-    label_names = [l["name"].lower() for l in labels if l and "name" in l]
+    # Read label names populated from REST API response
+    label_names = issue.get("raw_label_names", [])
     label_score = sum(LABEL_WEIGHTS.get(label, 0.0) for label in label_names)
     
     final_score = (
