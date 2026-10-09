@@ -319,26 +319,35 @@ def compute_priority_score(issue):
 # 4. Project v2 Mutation Sync (Score + Source Text Column)
 # -------------------------------------------------------------------
 def sync_to_github_project(project_id, score_field_id, repo_field_id, issue_node_id, repo_full_name, score):
-    # 1. Add item to project
+    # 1. Add item to project (Includes item type inspection)
     add_item_mutation = """
     mutation($projectId: ID!, $contentId: ID!) {
       addProjectV2ItemById(input: {projectId: $projectId, contentId: $contentId}) {
-        item { id }
+        item { 
+          id 
+          type
+        }
       }
     }
     """
     item_data = run_graphql(add_item_mutation, {"projectId": project_id, "contentId": issue_node_id})
-    item_id = item_data["addProjectV2ItemById"]["item"]["id"]
+    item_node = item_data["addProjectV2ItemById"]["item"]
+    item_id = item_node["id"]
+    item_type = item_node.get("type", "UNKNOWN")
+
+    # Hydration pause for external reference items (e.g., moby/moby)
+    if item_type != "ISSUE" or "moby" in repo_full_name.lower():
+        time.sleep(0.5)
 
     # 2. Update Priority Score (Number Field)
     update_score_mutation = """
-    mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $numberValue: Float!) {
+    mutation($projectId: ID!, $itemId: ID!, $scoreFieldId: ID!, $scoreValue: Float!) {
       updateProjectV2ItemFieldValue(
         input: {
           projectId: $projectId
           itemId: $itemId
-          fieldId: $fieldId
-          value: { number: $numberValue }
+          fieldId: $scoreFieldId
+          value: { number: $scoreValue }
         }
       ) {
         projectV2Item { id }
@@ -348,18 +357,18 @@ def sync_to_github_project(project_id, score_field_id, repo_field_id, issue_node
     run_graphql(update_score_mutation, {
         "projectId": project_id,
         "itemId": item_id,
-        "fieldId": score_field_id,
-        "numberValue": float(score)
+        "scoreFieldId": score_field_id,
+        "scoreValue": float(score)
     })
 
-    # 3. Update Source (Text Field)
+    # 3. Update Source (Text Field with Explicit Variable Names and Retry Loop)
     update_repo_mutation = """
-    mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $textValue: String!) {
+    mutation($projectId: ID!, $itemId: ID!, $repoFieldId: ID!, $textValue: String!) {
       updateProjectV2ItemFieldValue(
         input: {
           projectId: $projectId
           itemId: $itemId
-          fieldId: $fieldId
+          fieldId: $repoFieldId
           value: { text: $textValue }
         }
       ) {
@@ -367,12 +376,20 @@ def sync_to_github_project(project_id, score_field_id, repo_field_id, issue_node
       }
     }
     """
-    run_graphql(update_repo_mutation, {
-        "projectId": project_id,
-        "itemId": item_id,
-        "fieldId": repo_field_id,
-        "textValue": str(repo_full_name)
-    })
+    
+    for attempt in range(1, 3):
+        try:
+            run_graphql(update_repo_mutation, {
+                "projectId": project_id,
+                "itemId": item_id,
+                "repoFieldId": repo_field_id,
+                "textValue": str(repo_full_name)
+            })
+            break
+        except Exception as e:
+            if attempt == 2:
+                print(f"  └─ [WARNING] Could not update Source field for {repo_full_name} Item #{item_id}: {e}")
+            time.sleep(1.0)
 
 # -------------------------------------------------------------------
 # Execution Entry Point
