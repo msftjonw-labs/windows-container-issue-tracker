@@ -316,7 +316,7 @@ def compute_priority_score(issue):
     return round(final_score, 2)
 
 # -------------------------------------------------------------------
-# 4. Project v2 Mutation Sync (Score + Repository Column)
+# 4. Project v2 Mutation Sync (Score + Source Text Column)
 # -------------------------------------------------------------------
 def sync_to_github_project(project_id, score_field_id, repo_field_id, issue_node_id, repo_full_name, score):
     # 1. Add item to project
@@ -332,13 +332,13 @@ def sync_to_github_project(project_id, score_field_id, repo_field_id, issue_node
 
     # 2. Update Priority Score (Number Field)
     update_score_mutation = """
-    mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $value: Float!) {
+    mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $numberValue: Float!) {
       updateProjectV2ItemFieldValue(
         input: {
           projectId: $projectId
           itemId: $itemId
           fieldId: $fieldId
-          value: { number: $value }
+          value: { number: $numberValue }
         }
       ) {
         projectV2Item { id }
@@ -349,18 +349,18 @@ def sync_to_github_project(project_id, score_field_id, repo_field_id, issue_node
         "projectId": project_id,
         "itemId": item_id,
         "fieldId": score_field_id,
-        "value": float(score)
+        "numberValue": float(score)
     })
 
-    # 3. Update Repository (Text Field)
+    # 3. Update Source (Text Field)
     update_repo_mutation = """
-    mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $value: String!) {
+    mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $textValue: String!) {
       updateProjectV2ItemFieldValue(
         input: {
           projectId: $projectId
           itemId: $itemId
           fieldId: $fieldId
-          value: { text: $value }
+          value: { text: $textValue }
         }
       ) {
         projectV2Item { id }
@@ -371,7 +371,7 @@ def sync_to_github_project(project_id, score_field_id, repo_field_id, issue_node
         "projectId": project_id,
         "itemId": item_id,
         "fieldId": repo_field_id,
-        "value": repo_full_name
+        "textValue": str(repo_full_name)
     })
 
 # -------------------------------------------------------------------
