@@ -2,44 +2,52 @@ name: "Calculate Issue Priority Scores"
 
 on:
   schedule:
-    - cron: "0 */6 * * *" # Triggers automatically every 6 hours
-  workflow_dispatch: # Enables manual trigger button in GitHub UI
+    - cron: '0 17 * * 1' # Runs every Monday at 17:00 UTC
+  workflow_dispatch: # Allows manual trigger from GitHub UI
 
 jobs:
   score-issues:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
       - name: Install Dependencies
         run: pip install requests
 
+      # Generates a dynamic token for msftjonw-labs organization and public repo reads
+      - name: Generate GitHub App Token
+        id: generate-app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.APP_CLIENT_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
       - name: Run Scoring Script
         env:
-          # PAT for writing to your Personal GitHub Project v2 board
-          GH_PAT: ${{ secrets.GH_PROJECTS_PAT }}
+          # Single App Token used for both public repository queries and Project v2 updates
+          GITHUB_APP_TOKEN: ${{ steps.generate-app-token.outputs.token }}
 
-          # PAT for querying Microsoft/Azure enterprise public repositories
-          # MSFT_PAT: ${{ secrets.MSFT_ENTERPRISE_PAT }}
-
-          # YOUR PERSONAL GITHUB USERNAME
-          ORGANIZATION_NAME: "msftjonw"
-
-          # YOUR PERSONAL PROJECT V2 BOARD NUMBER
+          # Organization & Project details
+          ORGANIZATION_NAME: "msftjonw-labs"
           PROJECT_NUMBER: 1
+          
+          # Project v2 Custom Fields
           CUSTOM_FIELD_NAME: "Priority Score"
+          REPO_FIELD_NAME: "Source"
 
-          # PUBLIC TARGET REPOSITORIES
+          # Target public repositories
           TARGET_REPOS: >-
             kubernetes/kubernetes,
             kubernetes/enhancements,
             kubernetes/community,
+            kubernetes/minikube,
             helm/helm,
             prometheus/prometheus,
             containerd/containerd,
