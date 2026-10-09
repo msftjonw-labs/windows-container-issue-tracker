@@ -19,15 +19,30 @@ if not GH_TOKEN:
 TARGET_REPOS_RAW = os.getenv("TARGET_REPOS", "")
 TARGET_REPOS = [r.strip() for r in TARGET_REPOS_RAW.split(",") if r.strip()]
 
-# Custom Scoring Weights
+# Activity Threshold Configuration
+MIN_RECENT_COMMENTS = int(os.getenv("MIN_RECENT_COMMENTS", "2"))
+
+# Scoring Weights & Repository Priority Boosts
 WEIGHT_UNIQUE_USERS = 3.0
 WEIGHT_TOTAL_COMMENTS = 1.0
+
 LABEL_WEIGHTS = {
     "bug": 5.0,
     "customer-reported": 10.0,
     "p1": 15.0,
     "p2": 8.0,
     "feature-request": 2.0
+}
+
+REPO_WEIGHTS = {
+    "microsoft/windows-containers": 25.0,
+    "microsoft/windows-container-tools": 25.0,
+    "azure/aks": 15.0,
+    "kubernetes/kubernetes": 0.0,
+    "kubernetes/enhancements": 0.0,
+    "kubernetes/community": 0.0,
+    "moby/moby": 0.0,
+    "containerd/containerd": 0.0
 }
 
 # API Endpoint Configurations
@@ -43,7 +58,7 @@ TRANSIENT_STATUS_CODES = {500, 502, 503, 504}
 TRANSIENT_ERROR_MARKERS = ("something went wrong while executing your query", "timeout")
 MAX_ISSUES_PER_REPO = 100
 
-# Calculate 1-year cutoff timestamp for active discussion check
+# 1-year cutoff timestamp for active discussion check
 ONE_YEAR_AGO = datetime.now(timezone.utc) - timedelta(days=365)
 SINCE_ONE_YEAR_TIMESTAMP = ONE_YEAR_AGO.isoformat()
 
@@ -147,7 +162,7 @@ def clear_project_board(project_id):
     print("Project board pre-clearing complete.\n")
 
 # -------------------------------------------------------------------
-# 2. Strict Exact-Label & Recent Active Discussion Verification
+# 2. Label Resolution & Fetching
 # -------------------------------------------------------------------
 def get_required_label_for_repo(repo_full_name):
     repo_lower = repo_full_name.lower()
@@ -169,9 +184,6 @@ def get_required_label_for_repo(repo_full_name):
         return "sig/windows"
 
 def fetch_issue_graphql_details(node_id):
-    """
-    Fetches GraphQL node details including recent comment timestamps for activity calculation.
-    """
     query = """
     query($id: ID!) {
       node(id: $id) {
@@ -208,14 +220,14 @@ def fetch_external_repo_issues(repo_full_name):
         "per_page": 100,
         "sort": "updated",
         "direction": "desc",
-        "since": SINCE_ONE_YEAR_TIMESTAMP  # Fetch issues updated in the last 1 year
+        "since": SINCE_ONE_YEAR_TIMESTAMP
     }
 
     if required_label:
-        print(f"  └─ Exact Label Requirement: '{required_label}' | Criteria: >10 comments in past 1 year")
+        print(f"  └─ Exact Label Requirement: '{required_label}' | Activity Threshold: >= {MIN_RECENT_COMMENTS} comments in past year")
         params["labels"] = required_label
     else:
-        print(f"  └─ Fetching All Open Issues | Criteria: >10 comments in past 1 year")
+        print(f"  └─ Fetching All Open Issues | Activity Threshold: >= {MIN_RECENT_COMMENTS} comments in past year")
 
     response = requests.get(url, headers=headers, params=params)
     if response.status_code != 200:
@@ -226,16 +238,11 @@ def fetch_external_repo_issues(repo_full_name):
     verified_issues = []
 
     for issue in raw_issues:
-        # Skip Pull Requests
         if "pull_request" in issue:
             continue
 
         if len(verified_issues) >= MAX_ISSUES_PER_REPO:
             break
-
-        # Quick check: Issue must have more than 10 comments in total to qualify
-        if issue.get("comments", 0) <= 10:
-            continue
 
         # Verify Exact Match against raw issue label names
         label_names = [l["name"].strip().lower() for l in issue.get("labels", []) if isinstance(l, dict) and "name" in l]
@@ -246,14 +253,14 @@ def fetch_external_repo_issues(repo_full_name):
                 print(f"  └─ [EXCLUDED - LABEL MISMATCH] Issue #{issue['number']} missing exact label '{required_label}'")
                 continue
 
-        # Fetch GraphQL comments payload to evaluate comment timestamps
+        # Fetch GraphQL details
         gql_details = fetch_issue_graphql_details(issue["node_id"])
         if not gql_details:
             continue
 
         comments = gql_details.get("comments", {}).get("nodes", [])
         
-        # Count comments added in the past 1 year (365 days)
+        # Count comments added in the past 1 year
         recent_comments_count = 0
         for comment in comments:
             if comment and comment.get("createdAt"):
@@ -261,41 +268,46 @@ def fetch_external_repo_issues(repo_full_name):
                 if comment_dt >= ONE_YEAR_AGO:
                     recent_comments_count += 1
 
-        # Strict Filter: Must have MORE THAN 10 comments added in the past 1 year
-        if recent_comments_count <= 10:
-            print(f"  └─ [EXCLUDED - INACTIVE] Issue #{issue['number']} only has {recent_comments_count} comment(s) in the past year")
+        # Activity Filter Check
+        if recent_comments_count < MIN_RECENT_COMMENTS:
+            print(f"  └─ [EXCLUDED - INACTIVE] Issue #{issue['number']} has {recent_comments_count} comment(s) in past year (Threshold: >= {MIN_RECENT_COMMENTS})")
             continue
 
         gql_details["raw_label_names"] = label_names
         gql_details["recent_comments_count"] = recent_comments_count
+        gql_details["repo_full_name"] = repo_full_name
         verified_issues.append(gql_details)
 
     return verified_issues
 
 # -------------------------------------------------------------------
-# 3. Custom Weighted Priority Calculation
+# 3. Weighted Priority Score Calculation with Repo Boost
 # -------------------------------------------------------------------
 def compute_priority_score(issue):
     comments = issue.get("comments", {}).get("nodes", [])
     
     authors = {c["author"]["login"] for c in comments if c and c.get("author")}
     unique_user_count = len(authors)
-    
     total_comments = len(comments)
     
     label_names = issue.get("raw_label_names", [])
     label_score = sum(LABEL_WEIGHTS.get(label, 0.0) for label in label_names)
     
+    # Repository Boost
+    repo_name = issue.get("repo_full_name", "").lower()
+    repo_boost = REPO_WEIGHTS.get(repo_name, 0.0)
+    
     final_score = (
         (unique_user_count * WEIGHT_UNIQUE_USERS) +
         (total_comments * WEIGHT_TOTAL_COMMENTS) +
-        label_score
+        label_score +
+        repo_boost
     )
     
     return round(final_score, 2)
 
 # -------------------------------------------------------------------
-# 4. Write Item & Score into Organization GitHub Project v2 Board
+# 4. Project v2 Mutation Sync
 # -------------------------------------------------------------------
 def sync_to_github_project(project_id, field_id, issue_node_id, score):
     add_item_mutation = """
@@ -334,13 +346,13 @@ def sync_to_github_project(project_id, field_id, issue_node_id, score):
 # -------------------------------------------------------------------
 def main():
     print(f"Connecting to GitHub Projects (v2) for organization '{ORGANIZATION_NAME}'...")
-    print(f"Filtering issues actively discussed (>10 new comments) since: {SINCE_ONE_YEAR_TIMESTAMP[:10]}")
+    print(f"Filtering issues with >= {MIN_RECENT_COMMENTS} comments since: {SINCE_ONE_YEAR_TIMESTAMP[:10]}")
     project_id, field_id = get_project_and_field_ids()
 
-    # Step A: Pre-clear board
+    # Step A: Clear board
     clear_project_board(project_id)
 
-    # Step B: Populate fresh, strictly filtered issues
+    # Step B: Populate fresh issues
     for target in TARGET_REPOS:
         print(f"Processing External Repository: {target}")
         issues = fetch_external_repo_issues(target)
@@ -352,7 +364,7 @@ def main():
         for issue in issues:
             score = compute_priority_score(issue)
             sync_to_github_project(project_id, field_id, issue["id"], score)
-            print(f"  └─ [ADDED] Issue #{issue['number']} ('{issue['title'][:30]}...') -> {issue['recent_comments_count']} recent comments | Score: {score}")
+            print(f"  └─ [ADDED] Issue #{issue['number']} ('{issue['title'][:30]}...') -> {issue['recent_comments_count']} recent comments | Priority Score: {score}")
 
 if __name__ == "__main__":
     main()
