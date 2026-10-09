@@ -10,7 +10,8 @@ import requests
 GH_TOKEN = os.getenv("GITHUB_APP_TOKEN") or os.getenv("GH_PAT")
 ORGANIZATION_NAME = os.getenv("ORGANIZATION_NAME", "msftjonw-labs")
 PROJECT_NUMBER = int(os.getenv("PROJECT_NUMBER", "1"))
-FIELD_NAME = os.getenv("CUSTOM_FIELD_NAME", "Priority Score")
+SCORE_FIELD_NAME = os.getenv("CUSTOM_FIELD_NAME", "Priority Score")
+REPO_FIELD_NAME = os.getenv("REPO_FIELD_NAME", "Source")
 
 if not GH_TOKEN:
     print("Error: Missing required environment variable GITHUB_APP_TOKEN.", file=sys.stderr)
@@ -116,16 +117,24 @@ def get_project_and_field_ids():
         raise ValueError(f"Project #{PROJECT_NUMBER} not found under organization '{ORGANIZATION_NAME}'")
         
     project_id = project["id"]
-    field_id = None
+    score_field_id = None
+    repo_field_id = None
+
     for field in project["fields"]["nodes"]:
-        if field and field.get("name") == FIELD_NAME:
-            field_id = field["id"]
-            break
+        if not field:
+            continue
+        field_name = field.get("name")
+        if field_name == SCORE_FIELD_NAME:
+            score_field_id = field["id"]
+        elif field_name == REPO_FIELD_NAME:
+            repo_field_id = field["id"]
             
-    if not field_id:
-        raise ValueError(f"Custom field '{FIELD_NAME}' not found in Project #{PROJECT_NUMBER}")
+    if not score_field_id:
+        raise ValueError(f"Custom field '{SCORE_FIELD_NAME}' not found in Project #{PROJECT_NUMBER}")
+    if not repo_field_id:
+        raise ValueError(f"Custom field '{REPO_FIELD_NAME}' not found in Project #{PROJECT_NUMBER}. Please create a Text field named '{REPO_FIELD_NAME}' in your Project board.")
         
-    return project_id, field_id
+    return project_id, score_field_id, repo_field_id
 
 def clear_project_board(project_id):
     query = """
@@ -307,9 +316,10 @@ def compute_priority_score(issue):
     return round(final_score, 2)
 
 # -------------------------------------------------------------------
-# 4. Project v2 Mutation Sync
+# 4. Project v2 Mutation Sync (Score + Repository Column)
 # -------------------------------------------------------------------
-def sync_to_github_project(project_id, field_id, issue_node_id, score):
+def sync_to_github_project(project_id, score_field_id, repo_field_id, issue_node_id, repo_full_name, score):
+    # 1. Add item to project
     add_item_mutation = """
     mutation($projectId: ID!, $contentId: ID!) {
       addProjectV2ItemById(input: {projectId: $projectId, contentId: $contentId}) {
@@ -320,7 +330,8 @@ def sync_to_github_project(project_id, field_id, issue_node_id, score):
     item_data = run_graphql(add_item_mutation, {"projectId": project_id, "contentId": issue_node_id})
     item_id = item_data["addProjectV2ItemById"]["item"]["id"]
 
-    update_field_mutation = """
+    # 2. Update Priority Score (Number Field)
+    update_score_mutation = """
     mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $value: Float!) {
       updateProjectV2ItemFieldValue(
         input: {
@@ -334,11 +345,33 @@ def sync_to_github_project(project_id, field_id, issue_node_id, score):
       }
     }
     """
-    run_graphql(update_field_mutation, {
+    run_graphql(update_score_mutation, {
         "projectId": project_id,
         "itemId": item_id,
-        "fieldId": field_id,
+        "fieldId": score_field_id,
         "value": float(score)
+    })
+
+    # 3. Update Repository (Text Field)
+    update_repo_mutation = """
+    mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $value: String!) {
+      updateProjectV2ItemFieldValue(
+        input: {
+          projectId: $projectId
+          itemId: $itemId
+          fieldId: $fieldId
+          value: { text: $value }
+        }
+      ) {
+        projectV2Item { id }
+      }
+    }
+    """
+    run_graphql(update_repo_mutation, {
+        "projectId": project_id,
+        "itemId": item_id,
+        "fieldId": repo_field_id,
+        "value": repo_full_name
     })
 
 # -------------------------------------------------------------------
@@ -347,7 +380,7 @@ def sync_to_github_project(project_id, field_id, issue_node_id, score):
 def main():
     print(f"Connecting to GitHub Projects (v2) for organization '{ORGANIZATION_NAME}'...")
     print(f"Filtering issues with >= {MIN_RECENT_COMMENTS} comments since: {SINCE_ONE_YEAR_TIMESTAMP[:10]}")
-    project_id, field_id = get_project_and_field_ids()
+    project_id, score_field_id, repo_field_id = get_project_and_field_ids()
 
     # Step A: Clear board
     clear_project_board(project_id)
@@ -363,8 +396,9 @@ def main():
 
         for issue in issues:
             score = compute_priority_score(issue)
-            sync_to_github_project(project_id, field_id, issue["id"], score)
-            print(f"  └─ [ADDED] Issue #{issue['number']} ('{issue['title'][:30]}...') -> {issue['recent_comments_count']} recent comments | Priority Score: {score}")
+            repo_name = issue["repo_full_name"]
+            sync_to_github_project(project_id, score_field_id, repo_field_id, issue["id"], repo_name, score)
+            print(f"  └─ [ADDED] Issue #{issue['number']} ({repo_name}) -> Priority Score: {score}")
 
 if __name__ == "__main__":
     main()

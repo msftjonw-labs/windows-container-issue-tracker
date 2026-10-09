@@ -37,7 +37,10 @@ jobs:
           # Organization & Project details
           ORGANIZATION_NAME: "msftjonw-labs"
           PROJECT_NUMBER: 1
+          
+          # Project v2 Custom Fields
           CUSTOM_FIELD_NAME: "Priority Score"
+          REPO_FIELD_NAME: "Source"
 
           # Target public repositories
           TARGET_REPOS: >-
