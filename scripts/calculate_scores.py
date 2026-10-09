@@ -3,68 +3,70 @@ import sys
 import time
 import requests
 
-# -----------------------------------------------------------------------------
+# -------------------------------------------------------------------
 # Configuration & Environment Setup
-# -----------------------------------------------------------------------------
-GITHUB_APP_TOKEN = os.getenv("GITHUB_APP_TOKEN")
+# -------------------------------------------------------------------
+# Using a single GitHub App Installation Token for both public repo queries & org project updates
+GH_TOKEN = os.getenv("GITHUB_APP_TOKEN") or os.getenv("GH_PAT")
 ORGANIZATION_NAME = os.getenv("ORGANIZATION_NAME", "msftjonw-labs")
 PROJECT_NUMBER = int(os.getenv("PROJECT_NUMBER", "1"))
-CUSTOM_FIELD_NAME = os.getenv("CUSTOM_FIELD_NAME", "Priority Score")
-TARGET_REPOS_RAW = os.getenv("TARGET_REPOS", "")
+FIELD_NAME = os.getenv("CUSTOM_FIELD_NAME", "Priority Score")
 
-if not GITHUB_APP_TOKEN:
+if not GH_TOKEN:
     print("Error: Missing required environment variable GITHUB_APP_TOKEN.", file=sys.stderr)
     sys.exit(1)
 
-# Clean up repo list
-TARGET_REPOS = [r.strip() for r in TARGET_REPOS_RAW.replace("\n", "").split(",") if r.strip()]
+# Parse target external repos ("owner1/repo1, owner2/repo2")
+TARGET_REPOS_RAW = os.getenv("TARGET_REPOS", "")
+TARGET_REPOS = [r.strip() for r in TARGET_REPOS_RAW.split(",") if r.strip()]
 
-GRAPHQL_URL = "https://api.github.com/graphql"
-HEADERS = {
-    "Authorization": f"Bearer {GITHUB_APP_TOKEN}",
-    "Accept": "application/vnd.github+json"
+# Custom Scoring Weights
+WEIGHT_UNIQUE_USERS = 3.0
+WEIGHT_TOTAL_COMMENTS = 1.0
+LABEL_WEIGHTS = {
+    "bug": 5.0,
+    "customer-reported": 10.0,
+    "p1": 15.0,
+    "p2": 8.0,
+    "feature-request": 2.0
 }
 
-# -----------------------------------------------------------------------------
-# GraphQL Helper with Exponential Backoff
-# -----------------------------------------------------------------------------
-def run_graphql(query: str, variables: dict = None, max_retries: int = 5) -> dict:
-    delay = 2
-    for attempt in range(1, max_retries + 1):
-        try:
-            response = requests.post(
-                GRAPHQL_URL,
-                json={"query": query, "variables": variables or {}},
-                headers=HEADERS,
-                timeout=60
-            )
-            
-            if response.status_code in (502, 503, 504):
-                print(f"[Warning] HTTP {response.status_code} received. Retrying in {delay}s (Attempt {attempt}/{max_retries})...")
-                time.sleep(delay)
-                delay *= 2
-                continue
+# API Client Setup
+GH_GRAPHQL_URL = "https://api.github.com/graphql"
+headers = {"Authorization": f"Bearer {GH_TOKEN}"}
 
-            response.raise_for_status()
-            res_json = response.json()
+MAX_GRAPHQL_ATTEMPTS = 3
+TRANSIENT_STATUS_CODES = {500, 502, 503, 504}
+TRANSIENT_ERROR_MARKERS = ("something went wrong while executing your query", "timeout")
+ISSUE_PAGE_SIZE = 10
+MAX_ISSUES_PER_REPO = 100
 
-            if "errors" in res_json and not res_json.get("data"):
-                raise Exception(f"GraphQL Errors: {res_json['errors']}")
+def run_graphql(query, variables=None):
+    for attempt in range(1, MAX_GRAPHQL_ATTEMPTS + 1):
+        response = requests.post(
+            GH_GRAPHQL_URL,
+            json={"query": query, "variables": variables},
+            headers=headers
+        )
+        if response.status_code != 200:
+            error = Exception(f"GraphQL query failed ({response.status_code}): {response.text}")
+            transient = response.status_code in TRANSIENT_STATUS_CODES
+        else:
+            res_data = response.json()
+            if "errors" not in res_data:
+                return res_data["data"]
+            error = Exception(f"GraphQL Errors: {res_data['errors']}")
+            transient = any(m in str(res_data["errors"]).lower() for m in TRANSIENT_ERROR_MARKERS)
+        if not transient or attempt == MAX_GRAPHQL_ATTEMPTS:
+            raise error
+        delay = 2 ** (attempt - 1)
+        print(f"  └─ Transient GraphQL failure (attempt {attempt}/{MAX_GRAPHQL_ATTEMPTS}); retrying in {delay}s...")
+        time.sleep(delay)
 
-            return res_json.get("data", {})
-
-        except (requests.exceptions.RequestException, Exception) as e:
-            if attempt == max_retries:
-                raise Exception(f"GraphQL query failed after {max_retries} attempts: {e}")
-            print(f"[Warning] Network error: {e}. Retrying in {delay}s (Attempt {attempt}/{max_retries})...")
-            time.sleep(delay)
-            delay *= 2
-
-# -----------------------------------------------------------------------------
-# Organization Project v2 Metadata Resolution
-# -----------------------------------------------------------------------------
-def get_org_project_details(org_name: str, proj_num: int, field_name: str):
-    """Fetches Project v2 ID and custom Priority Score field ID for an Organization."""
+# -------------------------------------------------------------------
+# 1. Organization GitHub Project v2 Discovery & Board Cleanup
+# -------------------------------------------------------------------
+def get_project_and_field_ids():
     query = """
     query($org: String!, $number: Int!) {
       organization(login: $org) {
@@ -82,119 +84,228 @@ def get_org_project_details(org_name: str, proj_num: int, field_name: str):
       }
     }
     """
-    data = run_graphql(query, {"org": org_name, "number": proj_num})
+    data = run_graphql(query, {"org": ORGANIZATION_NAME, "number": PROJECT_NUMBER})
+    
     org_data = data.get("organization")
     if not org_data:
-        raise ValueError(f"Organization '{org_name}' not found or token lacks access.")
-    
+        raise ValueError(f"Organization '{ORGANIZATION_NAME}' not found or token lacks permissions.")
+        
     project = org_data.get("projectV2")
     if not project:
-        raise ValueError(f"Project #{proj_num} not found under organization '{org_name}'.")
-
+        raise ValueError(f"Project #{PROJECT_NUMBER} not found under organization '{ORGANIZATION_NAME}'")
+        
     project_id = project["id"]
     field_id = None
-
-    for node in project["fields"]["nodes"]:
-        if node and node.get("name") == field_name:
-            field_id = node.get("id")
+    for field in project["fields"]["nodes"]:
+        if field and field.get("name") == FIELD_NAME:
+            field_id = field["id"]
             break
-
+            
     if not field_id:
-        raise ValueError(f"Custom field '{field_name}' not found on Project #{proj_num}.")
-
+        raise ValueError(f"Custom field '{FIELD_NAME}' not found in Project #{PROJECT_NUMBER}")
+        
     return project_id, field_id
 
-# -----------------------------------------------------------------------------
-# Fetch Issues from Target Repositories (Optimized Payloads)
-# -----------------------------------------------------------------------------
-def fetch_repo_issues(owner: str, repo: str):
-    """Fetches open issues using lightweight paginated payloads to avoid HTTP 504 timeouts."""
+def clear_project_board(project_id):
+    """
+    Fetches all items currently on the project board and deletes them.
+    """
     query = """
-    query($owner: String!, $repo: String!, $cursor: String) {
-      repository(owner: $owner, name: $repo) {
-        issues(first: 35, states: OPEN, after: $cursor, orderBy: {field: UPDATED_AT, direction: DESC}) {
-          pageInfo {
-            hasNextPage
-            endCursor
+    query($projectId: ID!) {
+      node(id: $projectId) {
+        ... on ProjectV2 {
+          items(first: 100) {
+            nodes {
+              id
+            }
           }
+        }
+      }
+    }
+    """
+    data = run_graphql(query, {"projectId": project_id})
+    items = data.get("node", {}).get("items", {}).get("nodes", [])
+    
+    if not items:
+        print("Board is already empty.")
+        return
+
+    print(f"Clearing {len(items)} existing items from Project board...")
+    
+    delete_mutation = """
+    mutation($projectId: ID!, $itemId: ID!) {
+      deleteProjectV2Item(input: {projectId: $projectId, itemId: $itemId}) {
+        deletedItemId
+      }
+    }
+    """
+    for item in items:
+        run_graphql(delete_mutation, {"projectId": project_id, "itemId": item["id"]})
+    print("Project board pre-clearing complete.\n")
+
+# -------------------------------------------------------------------
+# 2. Direct Repository Issue Fetching & Exact String Label Validation
+# -------------------------------------------------------------------
+def get_required_label_for_repo(repo_full_name):
+    """
+    Returns exact label string required or None if no label filter is needed.
+    """
+    repo_lower = repo_full_name.lower()
+
+    # Rule 1: No label requirement
+    no_label_repos = [
+        "microsoft/windows-containers", 
+        "microsoft/windows-container-tools",
+        "docker/for-win"
+    ]
+    if repo_lower in no_label_repos:
+        return None
+    
+    # Rule 2: Must contain exact label 'windows'
+    elif repo_lower == "azure/aks":
+        return "windows"
+    
+    # Rule 3: Must contain exact label 'sig/windows'
+    elif repo_lower in ["kubernetes/kubernetes", "kubernetes/enhancements", "kubernetes/community"]:
+        return "sig/windows"
+    
+    # Rule 4: Must contain exact label 'platform/windows'
+    elif repo_lower in ["moby/moby", "containerd/containerd"]:
+        return "platform/windows"
+    
+    # Fallback
+    else:
+        return "sig/windows"
+
+def fetch_external_repo_issues(repo_full_name):
+    parts = repo_full_name.split("/")
+    if len(parts) != 2:
+        print(f"Skipping invalid target format '{repo_full_name}'. Expected 'owner/repo'.")
+        return []
+
+    owner, repo = parts[0], parts[1]
+    required_label = get_required_label_for_repo(repo_full_name)
+    
+    if required_label:
+        print(f"  └─ Strict Label Requirement: Exact match for '{required_label}'")
+    else:
+        print(f"  └─ Fetching All Open Issues (No Label Filter)")
+
+    # Direct repository node query to avoid search tokenizer behavior.
+    # Issues are fetched in small pages to keep each query lightweight and avoid gateway timeouts.
+    query = """
+    query($owner: String!, $repo: String!, $first: Int!, $after: String) {
+      repository(owner: $owner, name: $repo) {
+        issues(states: OPEN, first: $first, after: $after, orderBy: {field: UPDATED_AT, direction: DESC}) {
           nodes {
             id
             number
             title
             url
-            comments {
-              totalCount
+            labels(first: 50) {
+              nodes { name }
             }
-            reactions {
-              totalCount
-            }
-            labels(first: 20) {
+            comments(first: 100) {
               nodes {
-                name
+                author { login }
               }
             }
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
           }
         }
       }
     }
     """
-    issues = []
-    cursor = None
-    has_next = True
 
-    while has_next:
-        data = run_graphql(query, {"owner": owner, "repo": repo, "cursor": cursor})
-        repo_data = data.get("repository")
-        if not repo_data:
-            print(f"[Warning] Could not access repository {owner}/{repo}. Skipping.")
+    verified_issues = []
+    fetched = 0
+    after = None
+
+    while fetched < MAX_ISSUES_PER_REPO:
+        data = run_graphql(query, {"owner": owner, "repo": repo, "first": ISSUE_PAGE_SIZE, "after": after})
+
+        if not data or not data.get("repository") or not data["repository"].get("issues"):
+            if fetched == 0:
+                print(f"  └─ No open issues found.")
             break
 
-        issue_conn = repo_data["issues"]
-        issues.extend(issue_conn["nodes"])
+        issues = data["repository"]["issues"]
+        raw_nodes = issues.get("nodes") or []
+        fetched += len(raw_nodes)
 
-        has_next = issue_conn["pageInfo"]["hasNextPage"]
-        cursor = issue_conn["pageInfo"]["endCursor"]
+        for node in raw_nodes:
+            if not node or "id" not in node:
+                continue
 
-    return issues
+            if required_label:
+                # Normalize and extract label strings
+                node_labels = [
+                    l["name"].strip().lower()
+                    for l in node.get("labels", {}).get("nodes", [])
+                    if l and "name" in l
+                ]
 
-# -----------------------------------------------------------------------------
-# Scoring Logic
-# -----------------------------------------------------------------------------
-def calculate_priority_score(issue: dict) -> float:
-    """Calculates priority score based on engagement metrics and labels."""
-    comments_count = issue["comments"]["totalCount"]
-    reactions_count = issue["reactions"]["totalCount"]
-    labels = [l["name"].lower() for l in issue["labels"]["nodes"]]
+                target_label = required_label.strip().lower()
 
-    score = (comments_count * 1.5) + (reactions_count * 2.0)
+                # STRICT CHECK: Ensure target_label exists as an exact string element in the array
+                if target_label not in node_labels:
+                    print(f"  └─ [EXCLUDED] Issue #{node.get('number')} missing exact label '{required_label}'")
+                    continue
 
-    if any(l in labels for l in ["bug", "kind/bug", "type/bug"]):
-        score += 5.0
-    if any(l in labels for l in ["critical", "priority/critical-urgent", "P0"]):
-        score += 10.0
+            verified_issues.append(node)
 
-    return round(score, 2)
+        page_info = issues.get("pageInfo") or {}
+        if not page_info.get("hasNextPage") or not page_info.get("endCursor"):
+            break
+        after = page_info["endCursor"]
 
-# -----------------------------------------------------------------------------
-# Sync to Organization Project v2 Board
-# -----------------------------------------------------------------------------
-def sync_issue_to_project(project_id: str, field_id: str, content_id: str, score: float):
-    """Adds issue to org Project v2 and sets the numerical Priority Score."""
-    # 1. Add item to Project v2
-    add_item_query = """
+    return verified_issues
+
+# -------------------------------------------------------------------
+# 3. Custom Weighted Priority Calculation
+# -------------------------------------------------------------------
+def compute_priority_score(issue):
+    comments = issue.get("comments", {}).get("nodes", [])
+    
+    # Metric A: Unique Commenters
+    authors = {c["author"]["login"] for c in comments if c and c.get("author")}
+    unique_user_count = len(authors)
+    
+    # Metric B: Total Comment Count
+    total_comments = len(comments)
+    
+    # Metric C: Label Weights
+    labels = issue.get("labels", {}).get("nodes", [])
+    label_names = [l["name"].lower() for l in labels if l and "name" in l]
+    label_score = sum(LABEL_WEIGHTS.get(label, 0.0) for label in label_names)
+    
+    # Combined Formula
+    final_score = (
+        (unique_user_count * WEIGHT_UNIQUE_USERS) +
+        (total_comments * WEIGHT_TOTAL_COMMENTS) +
+        label_score
+    )
+    
+    return round(final_score, 2)
+
+# -------------------------------------------------------------------
+# 4. Write Item & Score into your Organization GitHub Project v2 Board
+# -------------------------------------------------------------------
+def sync_to_github_project(project_id, field_id, issue_node_id, score):
+    add_item_mutation = """
     mutation($projectId: ID!, $contentId: ID!) {
       addProjectV2ItemById(input: {projectId: $projectId, contentId: $contentId}) {
-        item {
-          id
-        }
+        item { id }
       }
     }
     """
-    data = run_graphql(add_item_query, {"projectId": project_id, "contentId": content_id})
-    item_id = data["addProjectV2ItemById"]["item"]["id"]
+    item_data = run_graphql(add_item_mutation, {"projectId": project_id, "contentId": issue_node_id})
+    item_id = item_data["addProjectV2ItemById"]["item"]["id"]
 
-    # 2. Update custom score field value
-    update_field_query = """
+    update_field_mutation = """
     mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $value: Float!) {
       updateProjectV2ItemFieldValue(
         input: {
@@ -204,54 +315,40 @@ def sync_issue_to_project(project_id: str, field_id: str, content_id: str, score
           value: { number: $value }
         }
       ) {
-        projectV2Item {
-          id
-        }
+        projectV2Item { id }
       }
     }
     """
-    run_graphql(update_field_query, {
+    run_graphql(update_field_mutation, {
         "projectId": project_id,
         "itemId": item_id,
         "fieldId": field_id,
-        "value": score
+        "value": float(score)
     })
 
-# -----------------------------------------------------------------------------
-# Main Execution Pipeline
-# -----------------------------------------------------------------------------
+# -------------------------------------------------------------------
+# Execution Entry Point
+# -------------------------------------------------------------------
 def main():
-    print(f"Resolving Organization Project v2 metadata for '{ORGANIZATION_NAME}'...")
-    project_id, field_id = get_org_project_details(ORGANIZATION_NAME, PROJECT_NUMBER, CUSTOM_FIELD_NAME)
-    print(f"Project ID: {project_id} | Field ID: {field_id}")
+    print(f"Connecting to GitHub Projects (v2) for organization '{ORGANIZATION_NAME}'...")
+    project_id, field_id = get_project_and_field_ids()
 
-    total_processed = 0
+    # Step A: Pre-clear board
+    clear_project_board(project_id)
 
-    for repo_full_name in TARGET_REPOS:
-        parts = repo_full_name.split("/")
-        if len(parts) != 2:
-            print(f"Skipping invalid repo string: '{repo_full_name}'")
+    # Step B: Populate fresh, strictly filtered issues
+    for target in TARGET_REPOS:
+        print(f"Processing External Repository: {target}")
+        issues = fetch_external_repo_issues(target)
+        
+        if not issues:
+            print(f"  └─ No matching issues found.")
             continue
 
-        owner, repo = parts[0], parts[1]
-        print(f"\nProcessing issues for {owner}/{repo}...")
-
-        try:
-            issues = fetch_repo_issues(owner, repo)
-            print(f"Found {len(issues)} open issues in {owner}/{repo}.")
-
-            for issue in issues:
-                score = calculate_priority_score(issue)
-                sync_issue_to_project(project_id, field_id, issue["id"], score)
-                total_processed += 1
-                
-                # Small delay to prevent API rate limit abuse penalties
-                time.sleep(0.1)
-
-        except Exception as err:
-            print(f"[Error] Failed processing repo {owner}/{repo}: {err}")
-
-    print(f"\nSuccessfully scored and synced {total_processed} total issues across repositories.")
+        for issue in issues:
+            score = compute_priority_score(issue)
+            sync_to_github_project(project_id, field_id, issue["id"], score)
+            print(f"  └─ [ADDED] Issue #{issue['number']} ('{issue['title'][:30]}...') -> Priority Score: {score}")
 
 if __name__ == "__main__":
     main()
