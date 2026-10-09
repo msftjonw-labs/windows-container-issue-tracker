@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+from datetime import datetime, timedelta, timezone
 import requests
 
 # -------------------------------------------------------------------
@@ -41,6 +42,10 @@ MAX_ATTEMPTS = 3
 TRANSIENT_STATUS_CODES = {500, 502, 503, 504}
 TRANSIENT_ERROR_MARKERS = ("something went wrong while executing your query", "timeout")
 MAX_ISSUES_PER_REPO = 100
+
+# Calculate 3-year cutoff timestamp (ISO 8601 format)
+THREE_YEARS_AGO = datetime.now(timezone.utc) - timedelta(days=365 * 3)
+SINCE_TIMESTAMP = THREE_YEARS_AGO.isoformat()
 
 def run_graphql(query, variables=None):
     for attempt in range(1, MAX_ATTEMPTS + 1):
@@ -142,7 +147,7 @@ def clear_project_board(project_id):
     print("Project board pre-clearing complete.\n")
 
 # -------------------------------------------------------------------
-# 2. Strict Exact-Label Fetching via GitHub REST API
+# 2. Strict Exact-Label & 3-Year Time Window Fetching via REST API
 # -------------------------------------------------------------------
 def get_required_label_for_repo(repo_full_name):
     repo_lower = repo_full_name.lower()
@@ -200,15 +205,16 @@ def fetch_external_repo_issues(repo_full_name):
     params = {
         "state": "open",
         "per_page": 100,
-        "sort": "updated",
-        "direction": "desc"
+        "sort": "created",
+        "direction": "desc",
+        "since": SINCE_TIMESTAMP  # Restricts fetch to items updated/created since 3 years ago
     }
 
     if required_label:
-        print(f"  └─ Strict Label Requirement: REST API exact label parameter '{required_label}'")
+        print(f"  └─ Exact Label Requirement: '{required_label}' | Time Window: Last 3 Years")
         params["labels"] = required_label
     else:
-        print(f"  └─ Fetching All Open Issues (No Label Filter)")
+        print(f"  └─ Fetching All Open Issues | Time Window: Last 3 Years")
 
     response = requests.get(url, headers=headers, params=params)
     if response.status_code != 200:
@@ -219,12 +225,20 @@ def fetch_external_repo_issues(repo_full_name):
     verified_issues = []
 
     for issue in raw_issues:
-        # Ignore Pull Requests (GitHub REST API includes PRs in the issues endpoint)
+        # Ignore Pull Requests
         if "pull_request" in issue:
             continue
 
         if len(verified_issues) >= MAX_ISSUES_PER_REPO:
             break
+
+        # Explicit creation date check for strict 3-year cutoff
+        created_at_str = issue.get("created_at")
+        if created_at_str:
+            created_at_dt = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
+            if created_at_dt < THREE_YEARS_AGO:
+                print(f"  └─ [EXCLUDED] Issue #{issue['number']} created prior to 3-year threshold ({created_at_str[:10]})")
+                continue
 
         # Double Check Exact Match against raw issue label names
         label_names = [l["name"].strip().lower() for l in issue.get("labels", []) if isinstance(l, dict) and "name" in l]
@@ -257,7 +271,6 @@ def compute_priority_score(issue):
     
     total_comments = len(comments)
     
-    # Read label names populated from REST API response
     label_names = issue.get("raw_label_names", [])
     label_score = sum(LABEL_WEIGHTS.get(label, 0.0) for label in label_names)
     
@@ -309,6 +322,7 @@ def sync_to_github_project(project_id, field_id, issue_node_id, score):
 # -------------------------------------------------------------------
 def main():
     print(f"Connecting to GitHub Projects (v2) for organization '{ORGANIZATION_NAME}'...")
+    print(f"Filtering issues created on or after: {SINCE_TIMESTAMP[:10]}")
     project_id, field_id = get_project_and_field_ids()
 
     # Step A: Pre-clear board
