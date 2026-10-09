@@ -43,9 +43,9 @@ TRANSIENT_STATUS_CODES = {500, 502, 503, 504}
 TRANSIENT_ERROR_MARKERS = ("something went wrong while executing your query", "timeout")
 MAX_ISSUES_PER_REPO = 100
 
-# Calculate 3-year cutoff timestamp (ISO 8601 format)
-THREE_YEARS_AGO = datetime.now(timezone.utc) - timedelta(days=365 * 3)
-SINCE_TIMESTAMP = THREE_YEARS_AGO.isoformat()
+# Calculate 1-year cutoff timestamp for active discussion check
+ONE_YEAR_AGO = datetime.now(timezone.utc) - timedelta(days=365)
+SINCE_ONE_YEAR_TIMESTAMP = ONE_YEAR_AGO.isoformat()
 
 def run_graphql(query, variables=None):
     for attempt in range(1, MAX_ATTEMPTS + 1):
@@ -147,7 +147,7 @@ def clear_project_board(project_id):
     print("Project board pre-clearing complete.\n")
 
 # -------------------------------------------------------------------
-# 2. Strict Exact-Label & 3-Year Time Window Fetching via REST API
+# 2. Strict Exact-Label & Recent Active Discussion Verification
 # -------------------------------------------------------------------
 def get_required_label_for_repo(repo_full_name):
     repo_lower = repo_full_name.lower()
@@ -170,7 +170,7 @@ def get_required_label_for_repo(repo_full_name):
 
 def fetch_issue_graphql_details(node_id):
     """
-    Fetches GraphQL node details (comments and node ID) needed for scoring & project sync.
+    Fetches GraphQL node details including recent comment timestamps for activity calculation.
     """
     query = """
     query($id: ID!) {
@@ -180,8 +180,9 @@ def fetch_issue_graphql_details(node_id):
           number
           title
           url
-          comments(first: 100) {
+          comments(last: 100) {
             nodes {
+              createdAt
               author { login }
             }
           }
@@ -205,16 +206,16 @@ def fetch_external_repo_issues(repo_full_name):
     params = {
         "state": "open",
         "per_page": 100,
-        "sort": "created",
+        "sort": "updated",
         "direction": "desc",
-        "since": SINCE_TIMESTAMP  # Restricts fetch to items updated/created since 3 years ago
+        "since": SINCE_ONE_YEAR_TIMESTAMP  # Fetch issues updated in the last 1 year
     }
 
     if required_label:
-        print(f"  └─ Exact Label Requirement: '{required_label}' | Time Window: Last 3 Years")
+        print(f"  └─ Exact Label Requirement: '{required_label}' | Criteria: >10 comments in past 1 year")
         params["labels"] = required_label
     else:
-        print(f"  └─ Fetching All Open Issues | Time Window: Last 3 Years")
+        print(f"  └─ Fetching All Open Issues | Criteria: >10 comments in past 1 year")
 
     response = requests.get(url, headers=headers, params=params)
     if response.status_code != 200:
@@ -225,37 +226,48 @@ def fetch_external_repo_issues(repo_full_name):
     verified_issues = []
 
     for issue in raw_issues:
-        # Ignore Pull Requests
+        # Skip Pull Requests
         if "pull_request" in issue:
             continue
 
         if len(verified_issues) >= MAX_ISSUES_PER_REPO:
             break
 
-        # Explicit creation date check for strict 3-year cutoff
-        created_at_str = issue.get("created_at")
-        if created_at_str:
-            created_at_dt = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
-            if created_at_dt < THREE_YEARS_AGO:
-                print(f"  └─ [EXCLUDED] Issue #{issue['number']} created prior to 3-year threshold ({created_at_str[:10]})")
-                continue
+        # Quick check: Issue must have more than 10 comments in total to qualify
+        if issue.get("comments", 0) <= 10:
+            continue
 
-        # Double Check Exact Match against raw issue label names
+        # Verify Exact Match against raw issue label names
         label_names = [l["name"].strip().lower() for l in issue.get("labels", []) if isinstance(l, dict) and "name" in l]
         
         if required_label:
             target = required_label.strip().lower()
             if target not in label_names:
-                print(f"  └─ [EXCLUDED] Issue #{issue['number']} missing exact label '{required_label}' (Labels: {label_names})")
+                print(f"  └─ [EXCLUDED - LABEL MISMATCH] Issue #{issue['number']} missing exact label '{required_label}'")
                 continue
 
-        # Enrich issue with GraphQL details (comments & node_id)
+        # Fetch GraphQL comments payload to evaluate comment timestamps
         gql_details = fetch_issue_graphql_details(issue["node_id"])
         if not gql_details:
             continue
 
-        # Attach raw labels from REST payload to ensure scoring reads full set
+        comments = gql_details.get("comments", {}).get("nodes", [])
+        
+        # Count comments added in the past 1 year (365 days)
+        recent_comments_count = 0
+        for comment in comments:
+            if comment and comment.get("createdAt"):
+                comment_dt = datetime.fromisoformat(comment["createdAt"].replace("Z", "+00:00"))
+                if comment_dt >= ONE_YEAR_AGO:
+                    recent_comments_count += 1
+
+        # Strict Filter: Must have MORE THAN 10 comments added in the past 1 year
+        if recent_comments_count <= 10:
+            print(f"  └─ [EXCLUDED - INACTIVE] Issue #{issue['number']} only has {recent_comments_count} comment(s) in the past year")
+            continue
+
         gql_details["raw_label_names"] = label_names
+        gql_details["recent_comments_count"] = recent_comments_count
         verified_issues.append(gql_details)
 
     return verified_issues
@@ -322,7 +334,7 @@ def sync_to_github_project(project_id, field_id, issue_node_id, score):
 # -------------------------------------------------------------------
 def main():
     print(f"Connecting to GitHub Projects (v2) for organization '{ORGANIZATION_NAME}'...")
-    print(f"Filtering issues created on or after: {SINCE_TIMESTAMP[:10]}")
+    print(f"Filtering issues actively discussed (>10 new comments) since: {SINCE_ONE_YEAR_TIMESTAMP[:10]}")
     project_id, field_id = get_project_and_field_ids()
 
     # Step A: Pre-clear board
@@ -340,7 +352,7 @@ def main():
         for issue in issues:
             score = compute_priority_score(issue)
             sync_to_github_project(project_id, field_id, issue["id"], score)
-            print(f"  └─ [ADDED] Issue #{issue['number']} ('{issue['title'][:30]}...') -> Priority Score: {score}")
+            print(f"  └─ [ADDED] Issue #{issue['number']} ('{issue['title'][:30]}...') -> {issue['recent_comments_count']} recent comments | Score: {score}")
 
 if __name__ == "__main__":
     main()
