@@ -6,103 +6,76 @@ from scripts import calculate_scores
 
 class FetchExternalRepoIssuesTests(unittest.TestCase):
     @staticmethod
-    def page(nodes, has_next_page=False, cursor=None):
+    def response(issues, has_next_page=False, status_code=200):
+        response = Mock()
+        response.status_code = status_code
+        response.json.return_value = issues
+        response.links = {"next": {"url": "next-page"}} if has_next_page else {}
+        response.text = ""
+        return response
+
+    @staticmethod
+    def details(node_id):
         return {
-            "repository": {
-                "issues": {
-                    "nodes": nodes,
-                    "pageInfo": {"hasNextPage": has_next_page, "endCursor": cursor}
-                }
+            "id": node_id,
+            "comments": {
+                "nodes": [
+                    {"createdAt": "2099-01-01T00:00:00Z", "author": {"login": "user-1"}},
+                    {"createdAt": "2099-01-02T00:00:00Z", "author": {"login": "user-2"}}
+                ]
             }
         }
 
-    @patch("scripts.calculate_scores.run_graphql")
-    def test_paginates_and_preserves_exact_label_filter_and_scores(self, graphql):
-        matching_issue = {
-            "id": "issue-2",
-            "labels": {"nodes": [{"name": "sig/windows"}, {"name": "bug"}]},
-            "comments": {"nodes": [
-                {"author": {"login": "user"}},
-                {"author": {"login": "user"}},
-                {"author": None}
-            ]}
-        }
-        graphql.side_effect = [
-            self.page([
-                {"id": "issue-1", "labels": {"nodes": [{"name": "sig/windows-extra"}]}}
-            ], True, "next-page"),
-            self.page([matching_issue])
+    @patch("scripts.calculate_scores.fetch_issue_graphql_details")
+    @patch("scripts.calculate_scores.requests.get")
+    def test_paginates_beyond_100_issues_without_result_cap(self, get, details):
+        first_page = [
+            {"number": number, "node_id": f"issue-{number}", "labels": []}
+            for number in range(1, 101)
         ]
-
-        issues = calculate_scores.fetch_external_repo_issues("kubernetes/kubernetes")
-
-        self.assertEqual(issues, [matching_issue])
-        self.assertEqual(calculate_scores.compute_priority_score(issues[0]), 11.0)
-        self.assertEqual(graphql.call_count, 2)
-        self.assertEqual(graphql.call_args_list[0].args[1], {
-            "owner": "kubernetes", "repo": "kubernetes", "first": 10, "after": None
-        })
-        self.assertEqual(graphql.call_args_list[1].args[1], {
-            "owner": "kubernetes", "repo": "kubernetes", "first": 10, "after": "next-page"
-        })
-        query = graphql.call_args.args[0]
-        self.assertIn("first: $first, after: $after", query)
-        self.assertIn("orderBy: {field: UPDATED_AT, direction: DESC}", query)
-        self.assertIn("comments(first: 100)", query)
-        self.assertIn("labels(first: 50)", query)
-
-    @patch("scripts.calculate_scores.run_graphql")
-    def test_stops_at_100_issues_even_when_none_match(self, graphql):
-        nodes = [{"id": f"issue-{i}", "labels": {"nodes": []}} for i in range(100)]
-        graphql.side_effect = [
-            self.page(nodes[i:i + 10], True, f"cursor-{i + 10}")
-            for i in range(0, 100, 10)
+        second_page = [{"number": 101, "node_id": "issue-101", "labels": []}]
+        get.side_effect = [
+            self.response(first_page, has_next_page=True),
+            self.response(second_page)
         ]
+        details.side_effect = lambda node_id: self.details(node_id)
 
-        self.assertEqual(
-            calculate_scores.fetch_external_repo_issues("kubernetes/kubernetes"), []
+        issues = calculate_scores.fetch_external_repo_issues(
+            "microsoft/windows-containers"
         )
 
-        self.assertEqual(graphql.call_count, 10)
-        self.assertTrue(all(call.args[1]["first"] == 10 for call in graphql.call_args_list))
-        self.assertEqual(graphql.call_args.args[1]["after"], "cursor-90")
-
-    @patch("scripts.calculate_scores.run_graphql")
-    def test_no_label_requirement_preserves_issue_order_across_pages(self, graphql):
-        nodes = [{"id": f"issue-{i}"} for i in range(12)]
-        graphql.side_effect = [
-            self.page(nodes[:10], True, "next-page"),
-            self.page(nodes[10:])
-        ]
-
+        self.assertEqual(len(issues), 101)
+        self.assertEqual(details.call_count, 101)
+        self.assertEqual(get.call_count, 2)
+        self.assertEqual(get.call_args_list[0].kwargs["params"]["page"], 1)
+        self.assertEqual(get.call_args_list[1].kwargs["params"]["page"], 2)
         self.assertEqual(
-            calculate_scores.fetch_external_repo_issues("microsoft/windows-containers"),
-            nodes
+            get.call_args_list[0].kwargs["params"]["since"],
+            calculate_scores.ISSUE_LOOKBACK_TIMESTAMP
         )
-        self.assertEqual(graphql.call_count, 2)
+        self.assertEqual(calculate_scores.ISSUE_LOOKBACK_DAYS, 1825)
 
-    @patch("scripts.calculate_scores.run_graphql")
-    def test_empty_or_missing_repository(self, graphql):
-        for response in (None, {"repository": None}, self.page([])):
-            with self.subTest(response=response):
-                graphql.reset_mock()
-                graphql.return_value = response
+    @patch("scripts.calculate_scores.fetch_issue_graphql_details")
+    @patch("scripts.calculate_scores.requests.get")
+    def test_aks_accepts_only_windows_or_win_labels_case_insensitively(
+        self, get, details
+    ):
+        get.return_value = self.response([
+            {"number": 1, "node_id": "windows", "labels": [{"name": "WIndows"}]},
+            {"number": 2, "node_id": "win", "labels": [{"name": "wIN"}]},
+            {
+                "number": 3,
+                "node_id": "windows-server",
+                "labels": [{"name": "windows-server"}]
+            },
+            {"number": 4, "node_id": "darwin", "labels": [{"name": "darwin"}]}
+        ])
+        details.side_effect = lambda node_id: self.details(node_id)
 
-                self.assertEqual(
-                    calculate_scores.fetch_external_repo_issues("kubernetes/kubernetes"),
-                    []
-                )
-                graphql.assert_called_once()
+        issues = calculate_scores.fetch_external_repo_issues("Azure/AKS")
 
-    @patch("scripts.calculate_scores.run_graphql")
-    def test_page_failure_is_not_silently_skipped(self, graphql):
-        graphql.side_effect = [
-            self.page([{"id": "issue-1"}], True, "next-page"),
-            Exception("GraphQL query failed (504)")
-        ]
-
-        with self.assertRaisesRegex(Exception, "GraphQL query failed"):
-            calculate_scores.fetch_external_repo_issues("microsoft/windows-containers")
+        self.assertEqual([issue["id"] for issue in issues], ["windows", "win"])
+        self.assertEqual(details.call_count, 2)
 
 
 class SyncToGithubProjectTests(unittest.TestCase):

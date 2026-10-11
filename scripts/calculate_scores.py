@@ -58,9 +58,12 @@ headers = {
 MAX_ATTEMPTS = 3
 TRANSIENT_STATUS_CODES = {500, 502, 503, 504}
 TRANSIENT_ERROR_MARKERS = ("something went wrong while executing your query", "timeout")
-MAX_ISSUES_PER_REPO = 100
+# Retrieve open issues updated within the past five years while retaining the
+# 730-day activity requirement below.
+ISSUE_LOOKBACK_DAYS = 1825
+ISSUE_LOOKBACK_START = datetime.now(timezone.utc) - timedelta(days=ISSUE_LOOKBACK_DAYS)
+ISSUE_LOOKBACK_TIMESTAMP = ISSUE_LOOKBACK_START.isoformat()
 
-# 730-day (2-year) cutoff timestamp for active discussion check
 TWO_YEARS_AGO = datetime.now(timezone.utc) - timedelta(days=730)
 SINCE_TWO_YEARS_TIMESTAMP = TWO_YEARS_AGO.isoformat()
 
@@ -68,7 +71,6 @@ MAX_GRAPHQL_ATTEMPTS = 3
 TRANSIENT_STATUS_CODES = {500, 502, 503, 504}
 TRANSIENT_ERROR_MARKERS = ("something went wrong while executing your query", "timeout")
 ISSUE_PAGE_SIZE = 10
-MAX_ISSUES_PER_REPO = 100
 
 def run_graphql(query, variables=None):
     for attempt in range(1, MAX_ATTEMPTS + 1):
@@ -236,7 +238,7 @@ def fetch_external_repo_issues(repo_full_name):
         "per_page": 100,
         "sort": "updated",
         "direction": "desc",
-        "since": SINCE_TWO_YEARS_TIMESTAMP
+        "since": ISSUE_LOOKBACK_TIMESTAMP
     }
 
     # Remove rigid REST label parameter for Azure/AKS to handle varied label conventions client-side
@@ -246,58 +248,62 @@ def fetch_external_repo_issues(repo_full_name):
     else:
         print(f"  └─ Fetching Open Issues | Activity Threshold: >= {MIN_RECENT_COMMENTS} comments in past 730 days")
 
-    response = requests.get(url, headers=headers, params=params)
-    if response.status_code != 200:
-        print(f"  └─ Failed to fetch issues from REST API ({response.status_code}): {response.text}")
-        return []
-
-    raw_issues = response.json()
     verified_issues = []
-    fetched = 0
-    after = None
+    page = 1
 
-    for issue in raw_issues:
-        if "pull_request" in issue:
-            continue
+    while True:
+        params["page"] = page
+        response = requests.get(url, headers=headers, params=params.copy())
+        if response.status_code != 200:
+            print(f"  └─ Failed to fetch issues from REST API ({response.status_code}): {response.text}")
+            return []
 
-        if len(verified_issues) >= MAX_ISSUES_PER_REPO:
+        raw_issues = response.json()
+        for issue in raw_issues:
+            if "pull_request" in issue:
+                continue
+
+            label_names = [
+                label["name"].strip().lower()
+                for label in issue.get("labels", [])
+                if isinstance(label, dict) and "name" in label
+            ]
+
+            if repo_full_name.lower() == "azure/aks":
+                if not any(label in {"windows", "win"} for label in label_names):
+                    print(f"  └─ [EXCLUDED - LABEL MISMATCH] Issue #{issue['number']} missing exact label 'Windows' or 'win'")
+                    continue
+            elif required_label:
+                target = required_label.strip().lower()
+                if target not in label_names:
+                    print(f"  └─ [EXCLUDED - LABEL MISMATCH] Issue #{issue['number']} missing exact label '{required_label}'")
+                    continue
+
+            gql_details = fetch_issue_graphql_details(issue["node_id"])
+            if not gql_details:
+                continue
+
+            comments = gql_details.get("comments", {}).get("nodes", [])
+
+            recent_comments_count = 0
+            for comment in comments:
+                if comment and comment.get("createdAt"):
+                    comment_dt = datetime.fromisoformat(comment["createdAt"].replace("Z", "+00:00"))
+                    if comment_dt >= TWO_YEARS_AGO:
+                        recent_comments_count += 1
+
+            if recent_comments_count < MIN_RECENT_COMMENTS:
+                print(f"  └─ [EXCLUDED - INACTIVE] Issue #{issue['number']} has {recent_comments_count} comment(s) in past 730 days (Threshold: >= {MIN_RECENT_COMMENTS})")
+                continue
+
+            gql_details["raw_label_names"] = label_names
+            gql_details["recent_comments_count"] = recent_comments_count
+            gql_details["repo_full_name"] = repo_full_name
+            verified_issues.append(gql_details)
+
+        if "next" not in response.links:
             break
-
-        label_names = [l["name"].strip().lower() for l in issue.get("labels", []) if isinstance(l, dict) and "name" in l]
-        
-        # Label matching verification
-        if repo_full_name.lower() == "azure/aks":
-            if not any("win" in l for l in label_names):
-                continue
-        elif required_label:
-            target = required_label.strip().lower()
-            if target not in label_names:
-                print(f"  └─ [EXCLUDED - LABEL MISMATCH] Issue #{issue['number']} missing exact label '{required_label}'")
-                continue
-
-        gql_details = fetch_issue_graphql_details(issue["node_id"])
-        if not gql_details:
-            continue
-
-        comments = gql_details.get("comments", {}).get("nodes", [])
-        
-        # Count comments created in the past 730 days (2 years)
-        recent_comments_count = 0
-        for comment in comments:
-            if comment and comment.get("createdAt"):
-                comment_dt = datetime.fromisoformat(comment["createdAt"].replace("Z", "+00:00"))
-                if comment_dt >= TWO_YEARS_AGO:
-                    recent_comments_count += 1
-
-        # Activity Filter Check against 730-day window
-        if recent_comments_count < MIN_RECENT_COMMENTS:
-            print(f"  └─ [EXCLUDED - INACTIVE] Issue #{issue['number']} has {recent_comments_count} comment(s) in past 730 days (Threshold: >= {MIN_RECENT_COMMENTS})")
-            continue
-
-        gql_details["raw_label_names"] = label_names
-        gql_details["recent_comments_count"] = recent_comments_count
-        gql_details["repo_full_name"] = repo_full_name
-        verified_issues.append(gql_details)
+        page += 1
 
     return verified_issues
 
@@ -408,6 +414,7 @@ def sync_to_github_project(project_id, score_field_id, repo_field_id, issue_node
 # -------------------------------------------------------------------
 def main():
     print(f"Connecting to GitHub Projects (v2) for organization '{ORGANIZATION_NAME}'...")
+    print(f"Retrieving open issues updated since: {ISSUE_LOOKBACK_TIMESTAMP[:10]}")
     print(f"Filtering issues with >= {MIN_RECENT_COMMENTS} comments since: {SINCE_TWO_YEARS_TIMESTAMP[:10]}")
     project_id, score_field_id, repo_field_id = get_project_and_field_ids()
 
