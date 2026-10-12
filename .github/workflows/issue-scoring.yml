@@ -42,6 +42,13 @@ jobs:
           CUSTOM_FIELD_NAME: "Priority Score"
           REPO_FIELD_NAME: "Source"
 
+          # Publish a durable digest only after a scheduled refresh completes
+          DIGEST_REPOSITORY: "msftjonw-labs/windows-container-issue-tracker"
+          DIGEST_LABELS: "weekly-digest,ready-to-email"
+          PUBLISH_WEEKLY_DIGEST: ${{ github.event_name == 'schedule' }}
+          GITHUB_WORKFLOW_RUN_URL: >-
+            https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
           # Target public repositories
           TARGET_REPOS: >-
             kubernetes/kubernetes,

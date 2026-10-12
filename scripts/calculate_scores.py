@@ -1,3 +1,4 @@
+import html
 import os
 import sys
 import time
@@ -12,6 +13,18 @@ ORGANIZATION_NAME = os.getenv("ORGANIZATION_NAME", "msftjonw-labs")
 PROJECT_NUMBER = int(os.getenv("PROJECT_NUMBER", "1"))
 SCORE_FIELD_NAME = os.getenv("CUSTOM_FIELD_NAME", "Priority Score")
 REPO_FIELD_NAME = os.getenv("REPO_FIELD_NAME", "Source")
+DIGEST_REPOSITORY = os.getenv(
+    "DIGEST_REPOSITORY",
+    "msftjonw-labs/windows-container-issue-tracker"
+)
+DIGEST_LABELS = [
+    label.strip()
+    for label in os.getenv(
+        "DIGEST_LABELS",
+        "weekly-digest,ready-to-email"
+    ).split(",")
+    if label.strip()
+]
 
 if not GH_TOKEN:
     print("Error: Missing required environment variable GITHUB_APP_TOKEN.", file=sys.stderr)
@@ -410,12 +423,166 @@ def sync_to_github_project(project_id, score_field_id, repo_field_id, issue_node
             time.sleep(1.0)
 
 # -------------------------------------------------------------------
+# 5. Durable Weekly Digest
+# -------------------------------------------------------------------
+def build_digest_title():
+    run_id = os.getenv("GITHUB_RUN_ID", "unknown")
+    generated_at = datetime.now(timezone.utc)
+    return (
+        f"[weekly-digest] Windows Container Issue Priorities "
+        f"- {generated_at:%Y-%m-%d} - Run {run_id}"
+    )
+
+def build_digest_body(top_issues_by_repo):
+    generated_at = datetime.now(timezone.utc)
+    workflow_run_url = os.getenv("GITHUB_WORKFLOW_RUN_URL", "")
+    rows = []
+
+    for repo_name, scored_issues in top_issues_by_repo.items():
+        safe_repo_name = html.escape(repo_name)
+
+        if not scored_issues:
+            rows.append(
+                "<tr>"
+                f"<td>{safe_repo_name}</td>"
+                '<td colspan="4"><em>No qualifying issues</em></td>'
+                "</tr>"
+            )
+            continue
+
+        for issue, score in scored_issues:
+            issue_number = issue["number"]
+            issue_title = html.escape(issue["title"])
+            issue_url = html.escape(issue["url"], quote=True)
+            recent_comments = issue.get("recent_comments_count", 0)
+            labels = ", ".join(issue.get("raw_label_names", []))
+
+            rows.append(
+                "<tr>"
+                f"<td>{safe_repo_name}</td>"
+                f'<td><a href="{issue_url}">'
+                f"#{issue_number} - {issue_title}</a></td>"
+                f'<td style="text-align:right">{score:.2f}</td>'
+                f'<td style="text-align:right">{recent_comments}</td>'
+                f"<td>{html.escape(labels)}</td>"
+                "</tr>"
+            )
+
+    workflow_link = ""
+    if workflow_run_url:
+        safe_workflow_url = html.escape(workflow_run_url, quote=True)
+        workflow_link = (
+            f'<p><a href="{safe_workflow_url}">'
+            "View the generating GitHub Actions run"
+            "</a></p>"
+        )
+
+    run_id = html.escape(os.getenv("GITHUB_RUN_ID", "unknown"))
+    return f"""
+<!-- weekly-digest -->
+<!-- generated-at: {generated_at.isoformat()} -->
+<!-- workflow-run-id: {run_id} -->
+
+<h2>Weekly Windows Container Issue Priorities</h2>
+
+<p>
+Top three qualifying issues from each monitored repository,
+ordered by priority score.
+</p>
+
+<table>
+<thead>
+<tr>
+<th>Repository</th>
+<th>Issue</th>
+<th>Priority Score</th>
+<th>Recent Comments</th>
+<th>Labels</th>
+</tr>
+</thead>
+<tbody>
+{''.join(rows)}
+</tbody>
+</table>
+
+<p>Generated at {generated_at:%Y-%m-%d %H:%M UTC}.</p>
+
+{workflow_link}
+""".strip()
+
+def find_existing_digest_issue(repo_full_name, run_id):
+    owner, repo = repo_full_name.split("/", 1)
+    params = {
+        "state": "all",
+        "per_page": 100
+    }
+    if DIGEST_LABELS:
+        params["labels"] = DIGEST_LABELS[0]
+
+    response = requests.get(
+        f"{GH_REST_URL}/repos/{owner}/{repo}/issues",
+        headers=headers,
+        params=params,
+        timeout=30
+    )
+    response.raise_for_status()
+
+    run_suffix = f" - Run {run_id}"
+    for issue in response.json():
+        if (
+            "pull_request" not in issue
+            and issue.get("title", "").endswith(run_suffix)
+        ):
+            return issue
+
+    return None
+
+def publish_weekly_digest(top_issues_by_repo):
+    parts = DIGEST_REPOSITORY.split("/")
+    if len(parts) != 2 or not all(parts):
+        raise ValueError(
+            "DIGEST_REPOSITORY must use the 'owner/repository' format."
+        )
+
+    owner, repo = parts
+    run_id = os.getenv("GITHUB_RUN_ID", "unknown")
+    title = build_digest_title()
+    existing_issue = find_existing_digest_issue(
+        DIGEST_REPOSITORY,
+        run_id
+    )
+
+    if existing_issue:
+        print(
+            f"Weekly digest issue already exists: "
+            f"{existing_issue['html_url']}"
+        )
+        return existing_issue
+
+    response = requests.post(
+        f"{GH_REST_URL}/repos/{owner}/{repo}/issues",
+        headers=headers,
+        json={
+            "title": title,
+            "body": build_digest_body(top_issues_by_repo),
+            "labels": DIGEST_LABELS
+        },
+        timeout=30
+    )
+    response.raise_for_status()
+
+    digest_issue = response.json()
+    print(f"Weekly digest published: {digest_issue['html_url']}")
+    return digest_issue
+
+# -------------------------------------------------------------------
 # Execution Entry Point
 # -------------------------------------------------------------------
 def main():
     print(f"Connecting to GitHub Projects (v2) for organization '{ORGANIZATION_NAME}'...")
     print(f"Retrieving open issues updated since: {ISSUE_LOOKBACK_TIMESTAMP[:10]}")
     print(f"Filtering issues with >= {MIN_RECENT_COMMENTS} comments since: {SINCE_TWO_YEARS_TIMESTAMP[:10]}")
+    top_issues_by_repo = {}
     project_id, score_field_id, repo_field_id = get_project_and_field_ids()
 
     # Step A: Clear board
@@ -427,14 +594,30 @@ def main():
         issues = fetch_external_repo_issues(target)
         
         if not issues:
+            top_issues_by_repo[target] = []
             print(f"  └─ No matching issues found.")
             continue
 
-        for issue in issues:
-            score = compute_priority_score(issue)
+        scored_issues = [
+            (issue, compute_priority_score(issue))
+            for issue in issues
+        ]
+        scored_issues.sort(
+            key=lambda scored_issue: scored_issue[1],
+            reverse=True
+        )
+        top_issues_by_repo[target] = scored_issues[:3]
+
+        for issue, score in scored_issues:
             repo_name = issue["repo_full_name"]
             sync_to_github_project(project_id, score_field_id, repo_field_id, issue["id"], repo_name, score)
             print(f"  └─ [ADDED] Issue #{issue['number']} ({repo_name}) -> Priority Score: {score}")
+
+    publish_digest = (
+        os.getenv("PUBLISH_WEEKLY_DIGEST", "").strip().lower() == "true"
+    )
+    if publish_digest:
+        publish_weekly_digest(top_issues_by_repo)
 
 if __name__ == "__main__":
     main()
