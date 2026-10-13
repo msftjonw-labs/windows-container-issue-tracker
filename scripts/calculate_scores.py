@@ -77,7 +77,8 @@ ISSUE_LOOKBACK_DAYS = 1825
 ISSUE_LOOKBACK_START = datetime.now(timezone.utc) - timedelta(days=ISSUE_LOOKBACK_DAYS)
 ISSUE_LOOKBACK_TIMESTAMP = ISSUE_LOOKBACK_START.isoformat()
 
-TWO_YEARS_AGO = datetime.now(timezone.utc) - timedelta(days=730)
+STANDARD_LOOKBACK_DAYS = 730
+TWO_YEARS_AGO = datetime.now(timezone.utc) - timedelta(days=STANDARD_LOOKBACK_DAYS)
 SINCE_TWO_YEARS_TIMESTAMP = TWO_YEARS_AGO.isoformat()
 
 MAX_GRAPHQL_ATTEMPTS = 3
@@ -197,22 +198,42 @@ def clear_project_board(project_id):
 # -------------------------------------------------------------------
 def get_required_label_for_repo(repo_full_name):
     repo_lower = repo_full_name.lower()
+    owner = repo_lower.split("/", 1)[0]
 
-    no_label_repos = [
-        "microsoft/windows-containers", 
-        "microsoft/windows-container-tools",
-        "docker/for-win"
-    ]
-    if repo_lower in no_label_repos:
+    if owner == "microsoft" or repo_lower == "docker/for-win":
         return None
     elif repo_lower == "azure/aks":
         return "windows"
     elif repo_lower in ["kubernetes/kubernetes", "kubernetes/enhancements", "kubernetes/community"]:
         return "sig/windows"
+    elif repo_lower == "moby/buildkit":
+        return "area/windows"
+    elif repo_lower == "containerd/nerdctl":
+        return "platform/windows"
     elif repo_lower in ["moby/moby", "containerd/containerd"]:
         return "platform/windows"
     else:
         return "sig/windows"
+
+def get_issue_lookback_timestamp(repo_full_name):
+    owner = repo_full_name.lower().split("/", 1)[0]
+    if owner in {"microsoft", "azure"}:
+        return ISSUE_LOOKBACK_TIMESTAMP
+    return SINCE_TWO_YEARS_TIMESTAMP
+
+def label_matches_repo(repo_full_name, label_names, required_label):
+    repo_lower = repo_full_name.lower()
+
+    if repo_lower == "azure/aks":
+        return any(label in {"windows", "win"} for label in label_names)
+    if repo_lower in {"moby/buildkit", "moby/moby"}:
+        target = required_label.strip().lower()
+        return any(label.startswith(target) for label in label_names)
+    if repo_lower == "containerd/nerdctl":
+        return any(label.startswith("platform/windows") for label in label_names)
+    if required_label:
+        return required_label.strip().lower() in label_names
+    return True
 
 def fetch_issue_graphql_details(node_id):
     query = """
@@ -244,6 +265,7 @@ def fetch_external_repo_issues(repo_full_name):
 
     owner, repo = parts[0], parts[1]
     required_label = get_required_label_for_repo(repo_full_name)
+    issue_lookback_timestamp = get_issue_lookback_timestamp(repo_full_name)
     
     url = f"{GH_REST_URL}/repos/{owner}/{repo}/issues"
     params = {
@@ -251,15 +273,21 @@ def fetch_external_repo_issues(repo_full_name):
         "per_page": 100,
         "sort": "updated",
         "direction": "desc",
-        "since": ISSUE_LOOKBACK_TIMESTAMP
+        "since": issue_lookback_timestamp
     }
 
-    # Remove rigid REST label parameter for Azure/AKS to handle varied label conventions client-side
-    if required_label and repo_full_name.lower() != "azure/aks":
+    client_side_label_repos = {
+        "azure/aks",
+        "moby/buildkit",
+        "moby/moby",
+        "containerd/nerdctl"
+    }
+    if required_label and repo_full_name.lower() not in client_side_label_repos:
         print(f"  └─ Exact Label Requirement: '{required_label}' | Activity Threshold: >= {MIN_RECENT_COMMENTS} comments in past 730 days")
         params["labels"] = required_label
     else:
         print(f"  └─ Fetching Open Issues | Activity Threshold: >= {MIN_RECENT_COMMENTS} comments in past 730 days")
+    print(f"  └─ Issue Lookback Start: {issue_lookback_timestamp[:10]}")
 
     verified_issues = []
     page = 1
@@ -282,15 +310,17 @@ def fetch_external_repo_issues(repo_full_name):
                 if isinstance(label, dict) and "name" in label
             ]
 
-            if repo_full_name.lower() == "azure/aks":
-                if not any(label in {"windows", "win"} for label in label_names):
-                    print(f"  └─ [EXCLUDED - LABEL MISMATCH] Issue #{issue['number']} missing exact label 'Windows' or 'win'")
-                    continue
-            elif required_label:
-                target = required_label.strip().lower()
-                if target not in label_names:
-                    print(f"  └─ [EXCLUDED - LABEL MISMATCH] Issue #{issue['number']} missing exact label '{required_label}'")
-                    continue
+            if not label_matches_repo(
+                repo_full_name,
+                label_names,
+                required_label
+            ):
+                print(
+                    f"  └─ [EXCLUDED - LABEL MISMATCH] "
+                    f"Issue #{issue['number']} missing Windows label "
+                    f"matching '{required_label}'"
+                )
+                continue
 
             gql_details = fetch_issue_graphql_details(issue["node_id"])
             if not gql_details:
@@ -580,7 +610,8 @@ def publish_weekly_digest(top_issues_by_repo):
 # -------------------------------------------------------------------
 def main():
     print(f"Connecting to GitHub Projects (v2) for organization '{ORGANIZATION_NAME}'...")
-    print(f"Retrieving open issues updated since: {ISSUE_LOOKBACK_TIMESTAMP[:10]}")
+    print(f"Microsoft/Azure issue lookback starts: {ISSUE_LOOKBACK_TIMESTAMP[:10]}")
+    print(f"Other repository issue lookback starts: {SINCE_TWO_YEARS_TIMESTAMP[:10]}")
     print(f"Filtering issues with >= {MIN_RECENT_COMMENTS} comments since: {SINCE_TWO_YEARS_TIMESTAMP[:10]}")
     top_issues_by_repo = {}
     project_id, score_field_id, repo_field_id = get_project_and_field_ids()

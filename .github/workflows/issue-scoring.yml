@@ -58,11 +58,14 @@ jobs:
             helm/helm,
             prometheus/prometheus,
             containerd/containerd,
+            containerd/nerdctl,
             moby/moby,
+            moby/buildkit,
             envoyproxy/envoy,
             argoproj/argo-cd,
             docker/for-win,
             microsoft/Windows-Containers,
             microsoft/windows-container-tools,
+            microsoft/containers-toolkit,
             Azure/AKS
         run: python scripts/calculate_scores.py
