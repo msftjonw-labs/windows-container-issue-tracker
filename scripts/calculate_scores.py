@@ -1,3 +1,4 @@
+import html
 import os
 import sys
 import time
@@ -12,6 +13,18 @@ ORGANIZATION_NAME = os.getenv("ORGANIZATION_NAME", "msftjonw-labs")
 PROJECT_NUMBER = int(os.getenv("PROJECT_NUMBER", "1"))
 SCORE_FIELD_NAME = os.getenv("CUSTOM_FIELD_NAME", "Priority Score")
 REPO_FIELD_NAME = os.getenv("REPO_FIELD_NAME", "Source")
+DIGEST_REPOSITORY = os.getenv(
+    "DIGEST_REPOSITORY",
+    "msftjonw-labs/windows-container-issue-tracker"
+)
+DIGEST_LABELS = [
+    label.strip()
+    for label in os.getenv(
+        "DIGEST_LABELS",
+        "weekly-digest,ready-to-email"
+    ).split(",")
+    if label.strip()
+]
 
 if not GH_TOKEN:
     print("Error: Missing required environment variable GITHUB_APP_TOKEN.", file=sys.stderr)
@@ -22,6 +35,7 @@ TARGET_REPOS = [r.strip() for r in TARGET_REPOS_RAW.split(",") if r.strip()]
 
 # Activity Threshold Configuration
 MIN_RECENT_COMMENTS = int(os.getenv("MIN_RECENT_COMMENTS", "2"))
+MAX_PROJECT_ISSUES_PER_REPO = 10
 
 # Scoring Weights & Repository Priority Boosts
 WEIGHT_UNIQUE_USERS = 3.0
@@ -64,7 +78,8 @@ ISSUE_LOOKBACK_DAYS = 1825
 ISSUE_LOOKBACK_START = datetime.now(timezone.utc) - timedelta(days=ISSUE_LOOKBACK_DAYS)
 ISSUE_LOOKBACK_TIMESTAMP = ISSUE_LOOKBACK_START.isoformat()
 
-TWO_YEARS_AGO = datetime.now(timezone.utc) - timedelta(days=730)
+STANDARD_LOOKBACK_DAYS = 730
+TWO_YEARS_AGO = datetime.now(timezone.utc) - timedelta(days=STANDARD_LOOKBACK_DAYS)
 SINCE_TWO_YEARS_TIMESTAMP = TWO_YEARS_AGO.isoformat()
 
 MAX_GRAPHQL_ATTEMPTS = 3
@@ -159,15 +174,6 @@ def clear_project_board(project_id):
       }
     }
     """
-    data = run_graphql(query, {"projectId": project_id})
-    items = data.get("node", {}).get("items", {}).get("nodes", [])
-    
-    if not items:
-        print("Board is already empty.")
-        return
-
-    print(f"Clearing {len(items)} existing items from Project board...")
-    
     delete_mutation = """
     mutation($projectId: ID!, $itemId: ID!) {
       deleteProjectV2Item(input: {projectId: $projectId, itemId: $itemId}) {
@@ -175,31 +181,71 @@ def clear_project_board(project_id):
       }
     }
     """
-    for item in items:
-        run_graphql(delete_mutation, {"projectId": project_id, "itemId": item["id"]})
-    print("Project board pre-clearing complete.\n")
+    deleted_count = 0
+
+    while True:
+        data = run_graphql(query, {"projectId": project_id})
+        items = data.get("node", {}).get("items", {}).get("nodes", [])
+        if not items:
+            break
+
+        print(f"Clearing batch of {len(items)} existing Project items...")
+        for item in items:
+            run_graphql(
+                delete_mutation,
+                {"projectId": project_id, "itemId": item["id"]}
+            )
+            deleted_count += 1
+
+    if deleted_count == 0:
+        print("Board is already empty.")
+    else:
+        print(
+            f"Project board pre-clearing complete "
+            f"({deleted_count} items removed).\n"
+        )
 
 # -------------------------------------------------------------------
 # 2. Label Resolution & Fetching (730-Day Activity Window)
 # -------------------------------------------------------------------
 def get_required_label_for_repo(repo_full_name):
     repo_lower = repo_full_name.lower()
+    owner = repo_lower.split("/", 1)[0]
 
-    no_label_repos = [
-        "microsoft/windows-containers", 
-        "microsoft/windows-container-tools",
-        "docker/for-win"
-    ]
-    if repo_lower in no_label_repos:
+    if owner == "microsoft" or repo_lower == "docker/for-win":
         return None
     elif repo_lower == "azure/aks":
         return "windows"
     elif repo_lower in ["kubernetes/kubernetes", "kubernetes/enhancements", "kubernetes/community"]:
         return "sig/windows"
+    elif repo_lower == "moby/buildkit":
+        return "area/windows"
+    elif repo_lower == "containerd/nerdctl":
+        return "platform/windows"
     elif repo_lower in ["moby/moby", "containerd/containerd"]:
         return "platform/windows"
     else:
         return "sig/windows"
+
+def get_issue_lookback_timestamp(repo_full_name):
+    owner = repo_full_name.lower().split("/", 1)[0]
+    if owner in {"microsoft", "azure"}:
+        return ISSUE_LOOKBACK_TIMESTAMP
+    return SINCE_TWO_YEARS_TIMESTAMP
+
+def label_matches_repo(repo_full_name, label_names, required_label):
+    repo_lower = repo_full_name.lower()
+
+    if repo_lower == "azure/aks":
+        return any(label in {"windows", "win"} for label in label_names)
+    if repo_lower in {"moby/buildkit", "moby/moby"}:
+        target = required_label.strip().lower()
+        return any(label.startswith(target) for label in label_names)
+    if repo_lower == "containerd/nerdctl":
+        return any(label.startswith("platform/windows") for label in label_names)
+    if required_label:
+        return required_label.strip().lower() in label_names
+    return True
 
 def fetch_issue_graphql_details(node_id):
     query = """
@@ -231,6 +277,7 @@ def fetch_external_repo_issues(repo_full_name):
 
     owner, repo = parts[0], parts[1]
     required_label = get_required_label_for_repo(repo_full_name)
+    issue_lookback_timestamp = get_issue_lookback_timestamp(repo_full_name)
     
     url = f"{GH_REST_URL}/repos/{owner}/{repo}/issues"
     params = {
@@ -238,15 +285,21 @@ def fetch_external_repo_issues(repo_full_name):
         "per_page": 100,
         "sort": "updated",
         "direction": "desc",
-        "since": ISSUE_LOOKBACK_TIMESTAMP
+        "since": issue_lookback_timestamp
     }
 
-    # Remove rigid REST label parameter for Azure/AKS to handle varied label conventions client-side
-    if required_label and repo_full_name.lower() != "azure/aks":
+    client_side_label_repos = {
+        "azure/aks",
+        "moby/buildkit",
+        "moby/moby",
+        "containerd/nerdctl"
+    }
+    if required_label and repo_full_name.lower() not in client_side_label_repos:
         print(f"  └─ Exact Label Requirement: '{required_label}' | Activity Threshold: >= {MIN_RECENT_COMMENTS} comments in past 730 days")
         params["labels"] = required_label
     else:
         print(f"  └─ Fetching Open Issues | Activity Threshold: >= {MIN_RECENT_COMMENTS} comments in past 730 days")
+    print(f"  └─ Issue Lookback Start: {issue_lookback_timestamp[:10]}")
 
     verified_issues = []
     page = 1
@@ -269,15 +322,17 @@ def fetch_external_repo_issues(repo_full_name):
                 if isinstance(label, dict) and "name" in label
             ]
 
-            if repo_full_name.lower() == "azure/aks":
-                if not any(label in {"windows", "win"} for label in label_names):
-                    print(f"  └─ [EXCLUDED - LABEL MISMATCH] Issue #{issue['number']} missing exact label 'Windows' or 'win'")
-                    continue
-            elif required_label:
-                target = required_label.strip().lower()
-                if target not in label_names:
-                    print(f"  └─ [EXCLUDED - LABEL MISMATCH] Issue #{issue['number']} missing exact label '{required_label}'")
-                    continue
+            if not label_matches_repo(
+                repo_full_name,
+                label_names,
+                required_label
+            ):
+                print(
+                    f"  └─ [EXCLUDED - LABEL MISMATCH] "
+                    f"Issue #{issue['number']} missing Windows label "
+                    f"matching '{required_label}'"
+                )
+                continue
 
             gql_details = fetch_issue_graphql_details(issue["node_id"])
             if not gql_details:
@@ -410,12 +465,167 @@ def sync_to_github_project(project_id, score_field_id, repo_field_id, issue_node
             time.sleep(1.0)
 
 # -------------------------------------------------------------------
+# 5. Durable Weekly Digest
+# -------------------------------------------------------------------
+def build_digest_title():
+    run_id = os.getenv("GITHUB_RUN_ID", "unknown")
+    generated_at = datetime.now(timezone.utc)
+    return (
+        f"[weekly-digest] Windows Container Issue Priorities "
+        f"- {generated_at:%Y-%m-%d} - Run {run_id}"
+    )
+
+def build_digest_body(top_issues_by_repo):
+    generated_at = datetime.now(timezone.utc)
+    workflow_run_url = os.getenv("GITHUB_WORKFLOW_RUN_URL", "")
+    rows = []
+
+    for repo_name, scored_issues in top_issues_by_repo.items():
+        safe_repo_name = html.escape(repo_name)
+
+        if not scored_issues:
+            rows.append(
+                "<tr>"
+                f"<td>{safe_repo_name}</td>"
+                '<td colspan="4"><em>No qualifying issues</em></td>'
+                "</tr>"
+            )
+            continue
+
+        for issue, score in scored_issues:
+            issue_number = issue["number"]
+            issue_title = html.escape(issue["title"])
+            issue_url = html.escape(issue["url"], quote=True)
+            recent_comments = issue.get("recent_comments_count", 0)
+            labels = ", ".join(issue.get("raw_label_names", []))
+
+            rows.append(
+                "<tr>"
+                f"<td>{safe_repo_name}</td>"
+                f'<td><a href="{issue_url}">'
+                f"#{issue_number} - {issue_title}</a></td>"
+                f'<td style="text-align:right">{score:.2f}</td>'
+                f'<td style="text-align:right">{recent_comments}</td>'
+                f"<td>{html.escape(labels)}</td>"
+                "</tr>"
+            )
+
+    workflow_link = ""
+    if workflow_run_url:
+        safe_workflow_url = html.escape(workflow_run_url, quote=True)
+        workflow_link = (
+            f'<p><a href="{safe_workflow_url}">'
+            "View the generating GitHub Actions run"
+            "</a></p>"
+        )
+
+    run_id = html.escape(os.getenv("GITHUB_RUN_ID", "unknown"))
+    return f"""
+<!-- weekly-digest -->
+<!-- generated-at: {generated_at.isoformat()} -->
+<!-- workflow-run-id: {run_id} -->
+
+<h2>Weekly Windows Container Issue Priorities</h2>
+
+<p>
+Top three qualifying issues from each monitored repository,
+ordered by priority score.
+</p>
+
+<table>
+<thead>
+<tr>
+<th>Repository</th>
+<th>Issue</th>
+<th>Priority Score</th>
+<th>Recent Comments</th>
+<th>Labels</th>
+</tr>
+</thead>
+<tbody>
+{''.join(rows)}
+</tbody>
+</table>
+
+<p>Generated at {generated_at:%Y-%m-%d %H:%M UTC}.</p>
+
+{workflow_link}
+""".strip()
+
+def find_existing_digest_issue(repo_full_name, run_id):
+    owner, repo = repo_full_name.split("/", 1)
+    params = {
+        "state": "all",
+        "per_page": 100
+    }
+    if DIGEST_LABELS:
+        params["labels"] = DIGEST_LABELS[0]
+
+    response = requests.get(
+        f"{GH_REST_URL}/repos/{owner}/{repo}/issues",
+        headers=headers,
+        params=params,
+        timeout=30
+    )
+    response.raise_for_status()
+
+    run_suffix = f" - Run {run_id}"
+    for issue in response.json():
+        if (
+            "pull_request" not in issue
+            and issue.get("title", "").endswith(run_suffix)
+        ):
+            return issue
+
+    return None
+
+def publish_weekly_digest(top_issues_by_repo):
+    parts = DIGEST_REPOSITORY.split("/")
+    if len(parts) != 2 or not all(parts):
+        raise ValueError(
+            "DIGEST_REPOSITORY must use the 'owner/repository' format."
+        )
+
+    owner, repo = parts
+    run_id = os.getenv("GITHUB_RUN_ID", "unknown")
+    title = build_digest_title()
+    existing_issue = find_existing_digest_issue(
+        DIGEST_REPOSITORY,
+        run_id
+    )
+
+    if existing_issue:
+        print(
+            f"Weekly digest issue already exists: "
+            f"{existing_issue['html_url']}"
+        )
+        return existing_issue
+
+    response = requests.post(
+        f"{GH_REST_URL}/repos/{owner}/{repo}/issues",
+        headers=headers,
+        json={
+            "title": title,
+            "body": build_digest_body(top_issues_by_repo),
+            "labels": DIGEST_LABELS
+        },
+        timeout=30
+    )
+    response.raise_for_status()
+
+    digest_issue = response.json()
+    print(f"Weekly digest published: {digest_issue['html_url']}")
+    return digest_issue
+
+# -------------------------------------------------------------------
 # Execution Entry Point
 # -------------------------------------------------------------------
 def main():
     print(f"Connecting to GitHub Projects (v2) for organization '{ORGANIZATION_NAME}'...")
-    print(f"Retrieving open issues updated since: {ISSUE_LOOKBACK_TIMESTAMP[:10]}")
+    print(f"Microsoft/Azure issue lookback starts: {ISSUE_LOOKBACK_TIMESTAMP[:10]}")
+    print(f"Other repository issue lookback starts: {SINCE_TWO_YEARS_TIMESTAMP[:10]}")
     print(f"Filtering issues with >= {MIN_RECENT_COMMENTS} comments since: {SINCE_TWO_YEARS_TIMESTAMP[:10]}")
+    top_issues_by_repo = {}
     project_id, score_field_id, repo_field_id = get_project_and_field_ids()
 
     # Step A: Clear board
@@ -427,14 +637,30 @@ def main():
         issues = fetch_external_repo_issues(target)
         
         if not issues:
+            top_issues_by_repo[target] = []
             print(f"  └─ No matching issues found.")
             continue
 
-        for issue in issues:
-            score = compute_priority_score(issue)
+        scored_issues = [
+            (issue, compute_priority_score(issue))
+            for issue in issues
+        ]
+        scored_issues.sort(
+            key=lambda scored_issue: scored_issue[1],
+            reverse=True
+        )
+        top_issues_by_repo[target] = scored_issues[:3]
+
+        for issue, score in scored_issues[:MAX_PROJECT_ISSUES_PER_REPO]:
             repo_name = issue["repo_full_name"]
             sync_to_github_project(project_id, score_field_id, repo_field_id, issue["id"], repo_name, score)
             print(f"  └─ [ADDED] Issue #{issue['number']} ({repo_name}) -> Priority Score: {score}")
+
+    publish_digest = (
+        os.getenv("PUBLISH_WEEKLY_DIGEST", "").strip().lower() == "true"
+    )
+    if publish_digest:
+        publish_weekly_digest(top_issues_by_repo)
 
 if __name__ == "__main__":
     main()
