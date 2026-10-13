@@ -18,22 +18,22 @@ approval to use the same service another way.
    will not work. App Passwords might be unavailable for accounts enrolled in
    Advanced Protection or restricted by a Google Workspace administrator.
 3. In the GitHub repository, open **Settings > Secrets and variables >
-   Actions** and create these repository secrets:
+   Actions**. Create `SMTP_PASSWORD` as a repository secret, and create the
+   remaining settings as repository variables:
 
-   | Secret | Value |
-   |---|---|
-   | `SMTP_USERNAME` | Full Gmail address used to authenticate |
-   | `SMTP_PASSWORD` | The 16-character Google App Password |
-   | `SMTP_FROM_ADDRESS` | Sender address, normally the same Gmail address |
-   | `WEEKLY_EMAIL_RECIPIENTS` | Comma-separated recipient addresses |
+   | Type | Name | Value |
+   |---|---|---|
+   | Variable | `SMTP_USERNAME` | Full Gmail address used to authenticate |
+   | Secret | `SMTP_PASSWORD` | The 16-character Google App Password |
+   | Variable | `SMTP_FROM_ADDRESS` | Sender address, normally the same Gmail address |
+   | Variable | `WEEKLY_EMAIL_RECIPIENTS` | Comma-separated recipient addresses |
 
-4. Run **Calculate Issue Priority Scores** manually from the Actions tab to
-   validate scoring and digest publication. Manual runs intentionally do not
-   send email.
-5. For a controlled email test, temporarily change `SEND_WEEKLY_EMAIL` in
-   `.github/workflows/issue-scoring.yml` to `true`, set
-   `WEEKLY_EMAIL_RECIPIENTS` to a test mailbox, run the workflow manually,
-   and restore the schedule-only expression afterward.
+4. Run **Calculate Issue Priority Scores** manually from the Actions tab,
+   select the `emailtest` branch, enable **Send the digest email during this
+   manual run**, and use a test mailbox for the first run.
+
+The manual email option defaults to off. Scheduled runs send the email
+automatically.
 
 The workflow uses `smtp.gmail.com` on port `465` with implicit TLS. The script
 also supports other authenticated SMTP services:
