@@ -35,6 +35,7 @@ TARGET_REPOS = [r.strip() for r in TARGET_REPOS_RAW.split(",") if r.strip()]
 
 # Activity Threshold Configuration
 MIN_RECENT_COMMENTS = int(os.getenv("MIN_RECENT_COMMENTS", "2"))
+MAX_PROJECT_ISSUES_PER_REPO = 10
 
 # Scoring Weights & Repository Priority Boosts
 WEIGHT_UNIQUE_USERS = 3.0
@@ -173,15 +174,6 @@ def clear_project_board(project_id):
       }
     }
     """
-    data = run_graphql(query, {"projectId": project_id})
-    items = data.get("node", {}).get("items", {}).get("nodes", [])
-    
-    if not items:
-        print("Board is already empty.")
-        return
-
-    print(f"Clearing {len(items)} existing items from Project board...")
-    
     delete_mutation = """
     mutation($projectId: ID!, $itemId: ID!) {
       deleteProjectV2Item(input: {projectId: $projectId, itemId: $itemId}) {
@@ -189,9 +181,29 @@ def clear_project_board(project_id):
       }
     }
     """
-    for item in items:
-        run_graphql(delete_mutation, {"projectId": project_id, "itemId": item["id"]})
-    print("Project board pre-clearing complete.\n")
+    deleted_count = 0
+
+    while True:
+        data = run_graphql(query, {"projectId": project_id})
+        items = data.get("node", {}).get("items", {}).get("nodes", [])
+        if not items:
+            break
+
+        print(f"Clearing batch of {len(items)} existing Project items...")
+        for item in items:
+            run_graphql(
+                delete_mutation,
+                {"projectId": project_id, "itemId": item["id"]}
+            )
+            deleted_count += 1
+
+    if deleted_count == 0:
+        print("Board is already empty.")
+    else:
+        print(
+            f"Project board pre-clearing complete "
+            f"({deleted_count} items removed).\n"
+        )
 
 # -------------------------------------------------------------------
 # 2. Label Resolution & Fetching (730-Day Activity Window)
@@ -639,7 +651,7 @@ def main():
         )
         top_issues_by_repo[target] = scored_issues[:3]
 
-        for issue, score in scored_issues:
+        for issue, score in scored_issues[:MAX_PROJECT_ISSUES_PER_REPO]:
             repo_name = issue["repo_full_name"]
             sync_to_github_project(project_id, score_field_id, repo_field_id, issue["id"], repo_name, score)
             print(f"  └─ [ADDED] Issue #{issue['number']} ({repo_name}) -> Priority Score: {score}")
