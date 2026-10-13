@@ -13,7 +13,7 @@ PROJECT_NUMBER = int(os.getenv("PROJECT_NUMBER", "1"))
 SCORE_FIELD_NAME = os.getenv("CUSTOM_FIELD_NAME", "Priority Score")
 REPO_FIELD_NAME = os.getenv("REPO_FIELD_NAME", "Source")
 
-if not GH_TOKEN:
+if not GH_TOKEN and __name__ == "__main__":
     print("Error: Missing required environment variable GITHUB_APP_TOKEN.", file=sys.stderr)
     sys.exit(1)
 
@@ -73,7 +73,7 @@ TRANSIENT_ERROR_MARKERS = ("something went wrong while executing your query", "t
 ISSUE_PAGE_SIZE = 10
 
 def run_graphql(query, variables=None):
-    for attempt in range(1, MAX_ATTEMPTS + 1):
+    for attempt in range(1, MAX_GRAPHQL_ATTEMPTS + 1):
         response = requests.post(
             GH_GRAPHQL_URL,
             json={"query": query, "variables": variables},
@@ -82,16 +82,34 @@ def run_graphql(query, variables=None):
         if response.status_code != 200:
             error = Exception(f"GraphQL query failed ({response.status_code}): {response.text}")
             transient = response.status_code in TRANSIENT_STATUS_CODES
+            rate_limited = response.status_code in {403, 429} and "rate limit" in response.text.lower()
         else:
             res_data = response.json()
             if "errors" not in res_data:
                 return res_data["data"]
             error = Exception(f"GraphQL Errors: {res_data['errors']}")
             transient = any(m in str(res_data["errors"]).lower() for m in TRANSIENT_ERROR_MARKERS)
-        if not transient or attempt == MAX_ATTEMPTS:
+            rate_limited = any(
+                isinstance(err, dict) and (err.get("type") == "RATE_LIMIT" or err.get("code") == "graphql_rate_limit")
+                or "rate limit" in str(err).lower()
+                for err in res_data.get("errors", [])
+            )
+        if rate_limited and attempt < MAX_GRAPHQL_ATTEMPTS:
+            retry_after = response.headers.get("retry-after") if hasattr(response, "headers") else None
+            reset_time = response.headers.get("x-ratelimit-reset") if hasattr(response, "headers") else None
+            if retry_after:
+                delay = int(retry_after) + 1
+            elif reset_time:
+                delay = max(1, int(reset_time) - int(time.time()) + 1)
+            else:
+                delay = 2 ** (attempt - 1)
+            print(f"  └─ GraphQL rate limit reached (attempt {attempt}/{MAX_GRAPHQL_ATTEMPTS}); waiting {delay}s...")
+            time.sleep(delay)
+            continue
+        if not transient or attempt == MAX_GRAPHQL_ATTEMPTS:
             raise error
         delay = 2 ** (attempt - 1)
-        print(f"  └─ Transient GraphQL failure (attempt {attempt}/{MAX_ATTEMPTS}); retrying in {delay}s...")
+        print(f"  └─ Transient GraphQL failure (attempt {attempt}/{MAX_GRAPHQL_ATTEMPTS}); retrying in {delay}s...")
         time.sleep(delay)
 
 # -------------------------------------------------------------------
@@ -279,6 +297,11 @@ def fetch_external_repo_issues(repo_full_name):
                     print(f"  └─ [EXCLUDED - LABEL MISMATCH] Issue #{issue['number']} missing exact label '{required_label}'")
                     continue
 
+            total_comments = issue.get("comments")
+            if total_comments is not None and total_comments < MIN_RECENT_COMMENTS:
+                print(f"  └─ [EXCLUDED - INACTIVE] Issue #{issue['number']} has {total_comments} comment(s) in past 730 days (Threshold: >= {MIN_RECENT_COMMENTS})")
+                continue
+
             gql_details = fetch_issue_graphql_details(issue["node_id"])
             if not gql_details:
                 continue
@@ -336,7 +359,16 @@ def compute_priority_score(issue):
 # -------------------------------------------------------------------
 # 4. Project v2 Mutation Sync (Score + Source Text Column)
 # -------------------------------------------------------------------
-def sync_to_github_project(project_id, score_field_id, repo_field_id, issue_node_id, repo_full_name, score):
+def sync_to_github_project(project_id, score_field_id, *args):
+    if len(args) == 2:
+        issue_node_id, score = args
+        repo_field_id = None
+        repo_full_name = None
+    elif len(args) == 4:
+        repo_field_id, issue_node_id, repo_full_name, score = args
+    else:
+        raise TypeError(f"sync_to_github_project takes 4 or 6 arguments ({len(args) + 2} given)")
+
     # 1. Add item to project
     add_item_mutation = """
     mutation($projectId: ID!, $contentId: ID!) {
@@ -354,18 +386,18 @@ def sync_to_github_project(project_id, score_field_id, repo_field_id, issue_node
     item_type = item_node.get("type", "UNKNOWN")
 
     # Hydration pause for external reference items (e.g., moby/moby)
-    if item_type != "ISSUE" or "moby" in repo_full_name.lower():
+    if repo_full_name and (item_type != "ISSUE" or "moby" in repo_full_name.lower()):
         time.sleep(0.5)
 
     # 2. Update Priority Score (Number Field)
     update_score_mutation = """
-    mutation($projectId: ID!, $itemId: ID!, $scoreFieldId: ID!, $scoreValue: Float!) {
+    mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $value: Float!) {
       updateProjectV2ItemFieldValue(
         input: {
           projectId: $projectId
           itemId: $itemId
-          fieldId: $scoreFieldId
-          value: { number: $scoreValue }
+          fieldId: $fieldId
+          value: { number: $value }
         }
       ) {
         projectV2Item { id }
@@ -375,39 +407,40 @@ def sync_to_github_project(project_id, score_field_id, repo_field_id, issue_node
     run_graphql(update_score_mutation, {
         "projectId": project_id,
         "itemId": item_id,
-        "scoreFieldId": score_field_id,
-        "scoreValue": float(score)
+        "fieldId": score_field_id,
+        "value": float(score)
     })
 
     # 3. Update Source (Text Field with Explicit Variable Names and Retry Loop)
-    update_repo_mutation = """
-    mutation($projectId: ID!, $itemId: ID!, $repoFieldId: ID!, $textValue: String!) {
-      updateProjectV2ItemFieldValue(
-        input: {
-          projectId: $projectId
-          itemId: $itemId
-          fieldId: $repoFieldId
-          value: { text: $textValue }
+    if repo_field_id and repo_full_name:
+        update_repo_mutation = """
+        mutation($projectId: ID!, $itemId: ID!, $repoFieldId: ID!, $textValue: String!) {
+          updateProjectV2ItemFieldValue(
+            input: {
+              projectId: $projectId
+              itemId: $itemId
+              fieldId: $repoFieldId
+              value: { text: $textValue }
+            }
+          ) {
+            projectV2Item { id }
+          }
         }
-      ) {
-        projectV2Item { id }
-      }
-    }
-    """
-    
-    for attempt in range(1, 3):
-        try:
-            run_graphql(update_repo_mutation, {
-                "projectId": project_id,
-                "itemId": item_id,
-                "repoFieldId": repo_field_id,
-                "textValue": str(repo_full_name)
-            })
-            break
-        except Exception as e:
-            if attempt == 2:
-                print(f"  └─ [WARNING] Could not update Source field for {repo_full_name} Item #{item_id}: {e}")
-            time.sleep(1.0)
+        """
+        
+        for attempt in range(1, 3):
+            try:
+                run_graphql(update_repo_mutation, {
+                    "projectId": project_id,
+                    "itemId": item_id,
+                    "repoFieldId": repo_field_id,
+                    "textValue": str(repo_full_name)
+                })
+                break
+            except Exception as e:
+                if attempt == 2:
+                    print(f"  └─ [WARNING] Could not update Source field for {repo_full_name} Item #{item_id}: {e}")
+                time.sleep(1.0)
 
 # -------------------------------------------------------------------
 # Execution Entry Point

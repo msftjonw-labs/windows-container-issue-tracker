@@ -77,6 +77,24 @@ class FetchExternalRepoIssuesTests(unittest.TestCase):
         self.assertEqual([issue["id"] for issue in issues], ["windows", "win"])
         self.assertEqual(details.call_count, 2)
 
+    @patch("scripts.calculate_scores.fetch_issue_graphql_details")
+    @patch("scripts.calculate_scores.requests.get")
+    def test_excludes_inactive_issues_by_rest_comment_count_without_graphql_call(
+        self, get, details
+    ):
+        get.return_value = self.response([
+            {"number": 1, "node_id": "inactive-0", "comments": 0, "labels": []},
+            {"number": 2, "node_id": "inactive-1", "comments": 1, "labels": []},
+            {"number": 3, "node_id": "active-2", "comments": 2, "labels": []},
+            {"number": 4, "node_id": "active-5", "comments": 5, "labels": []}
+        ])
+        details.side_effect = lambda node_id: self.details(node_id)
+
+        issues = calculate_scores.fetch_external_repo_issues("docker/for-win")
+
+        self.assertEqual([issue["id"] for issue in issues], ["active-2", "active-5"])
+        self.assertEqual(details.call_count, 2)
+
 
 class SyncToGithubProjectTests(unittest.TestCase):
     @patch("scripts.calculate_scores.run_graphql")
@@ -116,6 +134,34 @@ class SyncToGithubProjectTests(unittest.TestCase):
 
         graphql.assert_called_once()
 
+    @patch("scripts.calculate_scores.run_graphql")
+    def test_adds_issue_with_repo_field_and_updates_source_text(self, graphql):
+        graphql.side_effect = [
+            {"addProjectV2ItemById": {"item": {"id": "item-1"}}},
+            {"updateProjectV2ItemFieldValue": {"projectV2Item": {"id": "item-1"}}},
+            {"updateProjectV2ItemFieldValue": {"projectV2Item": {"id": "item-1"}}}
+        ]
+
+        calculate_scores.sync_to_github_project(
+            "project-1", "field-1", "repo-field-1", "issue-1", "docker/for-win", 11.5
+        )
+
+        self.assertEqual(graphql.call_count, 3)
+        add_call, score_call, repo_call = graphql.call_args_list
+        self.assertEqual(score_call.args[1], {
+            "projectId": "project-1",
+            "itemId": "item-1",
+            "fieldId": "field-1",
+            "value": 11.5
+        })
+        self.assertEqual(repo_call.args[1], {
+            "projectId": "project-1",
+            "itemId": "item-1",
+            "repoFieldId": "repo-field-1",
+            "textValue": "docker/for-win"
+        })
+        self.assertIn("value: { text: $textValue }", repo_call.args[0])
+
 
 class RunGraphqlTests(unittest.TestCase):
     @patch("scripts.calculate_scores.time.sleep")
@@ -153,6 +199,50 @@ class RunGraphqlTests(unittest.TestCase):
         self.assertEqual(result, {"viewer": {"login": "user"}})
         self.assertEqual(post.call_count, 2)
         sleep.assert_called_once_with(1)
+
+    @patch("scripts.calculate_scores.time.sleep")
+    @patch("scripts.calculate_scores.requests.post")
+    def test_retries_rate_limit_error_with_retry_after(self, post, sleep):
+        rate_limit_response = Mock()
+        rate_limit_response.status_code = 200
+        rate_limit_response.headers = {"retry-after": "5"}
+        rate_limit_response.json.return_value = {
+            "errors": [
+                {"type": "RATE_LIMIT", "code": "graphql_rate_limit", "message": "API rate limit already exceeded"}
+            ]
+        }
+        success_response = Mock()
+        success_response.status_code = 200
+        success_response.headers = {}
+        success_response.json.return_value = {"data": {"viewer": {"login": "user"}}}
+        post.side_effect = [rate_limit_response, success_response]
+
+        result = calculate_scores.run_graphql("query { viewer { login } }")
+
+        self.assertEqual(result, {"viewer": {"login": "user"}})
+        self.assertEqual(post.call_count, 2)
+        sleep.assert_called_once_with(6)
+
+    @patch("scripts.calculate_scores.time.time", return_value=1000.0)
+    @patch("scripts.calculate_scores.time.sleep")
+    @patch("scripts.calculate_scores.requests.post")
+    def test_retries_rate_limit_error_with_ratelimit_reset(self, post, sleep, mock_time):
+        rate_limit_response = Mock()
+        rate_limit_response.status_code = 403
+        rate_limit_response.headers = {"x-ratelimit-reset": "1010"}
+        rate_limit_response.text = "rate limit exceeded"
+        rate_limit_response.json.side_effect = ValueError("Not JSON")
+        success_response = Mock()
+        success_response.status_code = 200
+        success_response.headers = {}
+        success_response.json.return_value = {"data": {"viewer": {"login": "user"}}}
+        post.side_effect = [rate_limit_response, success_response]
+
+        result = calculate_scores.run_graphql("query { viewer { login } }")
+
+        self.assertEqual(result, {"viewer": {"login": "user"}})
+        self.assertEqual(post.call_count, 2)
+        sleep.assert_called_once_with(11)
 
     @patch("scripts.calculate_scores.time.sleep")
     @patch("scripts.calculate_scores.requests.post")
