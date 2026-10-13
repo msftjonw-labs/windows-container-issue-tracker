@@ -50,10 +50,10 @@ jobs:
           SMTP_HOST: "smtp.gmail.com"
           SMTP_PORT: "465"
           SMTP_SECURITY: "ssl"
-          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_USERNAME: ${{ vars.SMTP_USERNAME }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-          SMTP_FROM_ADDRESS: ${{ secrets.SMTP_FROM_ADDRESS }}
-          WEEKLY_EMAIL_RECIPIENTS: ${{ secrets.WEEKLY_EMAIL_RECIPIENTS }}
+          SMTP_FROM_ADDRESS: ${{ vars.SMTP_FROM_ADDRESS }}
+          WEEKLY_EMAIL_RECIPIENTS: ${{ vars.WEEKLY_EMAIL_RECIPIENTS }}
           GITHUB_WORKFLOW_RUN_URL: >-
             https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
