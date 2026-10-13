@@ -1,8 +1,11 @@
 import html
 import os
+import smtplib
+import ssl
 import sys
 import time
 from datetime import datetime, timedelta, timezone
+from email.message import EmailMessage
 import requests
 
 # -------------------------------------------------------------------
@@ -475,7 +478,7 @@ def build_digest_title():
         f"- {generated_at:%Y-%m-%d} - Run {run_id}"
     )
 
-def build_digest_body(top_issues_by_repo):
+def build_digest_body(top_issues_by_repo, digest_issue_url=""):
     generated_at = datetime.now(timezone.utc)
     workflow_run_url = os.getenv("GITHUB_WORKFLOW_RUN_URL", "")
     rows = []
@@ -519,6 +522,15 @@ def build_digest_body(top_issues_by_repo):
             "</a></p>"
         )
 
+    digest_issue_link = ""
+    if digest_issue_url:
+        safe_digest_issue_url = html.escape(digest_issue_url, quote=True)
+        digest_issue_link = (
+            f'<p><a href="{safe_digest_issue_url}">'
+            "View the durable digest issue"
+            "</a></p>"
+        )
+
     run_id = html.escape(os.getenv("GITHUB_RUN_ID", "unknown"))
     return f"""
 <!-- weekly-digest -->
@@ -550,6 +562,7 @@ ordered by priority score.
 <p>Generated at {generated_at:%Y-%m-%d %H:%M UTC}.</p>
 
 {workflow_link}
+{digest_issue_link}
 """.strip()
 
 def find_existing_digest_issue(repo_full_name, run_id):
@@ -617,6 +630,102 @@ def publish_weekly_digest(top_issues_by_repo):
     print(f"Weekly digest published: {digest_issue['html_url']}")
     return digest_issue
 
+def send_weekly_email(top_issues_by_repo, digest_issue_url=""):
+    smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com").strip()
+    smtp_port = int(os.getenv("SMTP_PORT", "465"))
+    smtp_security = os.getenv("SMTP_SECURITY", "ssl").strip().lower()
+    smtp_username = (
+        os.getenv("SMTP_USERNAME")
+        or os.getenv("GMAIL_ADDRESS")
+        or ""
+    ).strip()
+    smtp_password = (
+        os.getenv("SMTP_PASSWORD")
+        or os.getenv("GMAIL_APP_PASSWORD")
+        or ""
+    )
+    from_address = (
+        os.getenv("SMTP_FROM_ADDRESS")
+        or smtp_username
+    ).strip()
+    recipients = [
+        recipient.strip()
+        for recipient in os.getenv(
+            "WEEKLY_EMAIL_RECIPIENTS",
+            ""
+        ).split(",")
+        if recipient.strip()
+    ]
+
+    if not smtp_host:
+        raise ValueError(
+            "SMTP_HOST is required when weekly email is enabled."
+        )
+    if smtp_security not in {"ssl", "starttls"}:
+        raise ValueError(
+            "SMTP_SECURITY must be either 'ssl' or 'starttls'."
+        )
+    if not smtp_username:
+        raise ValueError(
+            "SMTP_USERNAME is required when weekly email is enabled."
+        )
+    if not smtp_password:
+        raise ValueError(
+            "SMTP_PASSWORD is required when weekly email is enabled."
+        )
+    if not from_address:
+        raise ValueError(
+            "SMTP_FROM_ADDRESS is required when weekly email is enabled."
+        )
+    if not recipients:
+        raise ValueError(
+            "WEEKLY_EMAIL_RECIPIENTS must contain at least one address."
+        )
+
+    generated_at = datetime.now(timezone.utc)
+    message = EmailMessage()
+    message["Subject"] = (
+        f"Windows Container Weekly Issue Digest "
+        f"- {generated_at:%Y-%m-%d}"
+    )
+    message["From"] = from_address
+    message["To"] = ", ".join(recipients)
+    message.set_content(
+        "This report requires an HTML-capable email client. "
+        "Use the durable GitHub digest issue or workflow run for details."
+    )
+    message.add_alternative(
+        build_digest_body(
+            top_issues_by_repo,
+            digest_issue_url=digest_issue_url
+        ),
+        subtype="html"
+    )
+
+    context = ssl.create_default_context()
+    if smtp_security == "ssl":
+        with smtplib.SMTP_SSL(
+            smtp_host,
+            smtp_port,
+            context=context,
+            timeout=30
+        ) as smtp:
+            smtp.login(smtp_username, smtp_password)
+            smtp.send_message(message)
+    else:
+        with smtplib.SMTP(
+            smtp_host,
+            smtp_port,
+            timeout=30
+        ) as smtp:
+            smtp.ehlo()
+            smtp.starttls(context=context)
+            smtp.ehlo()
+            smtp.login(smtp_username, smtp_password)
+            smtp.send_message(message)
+
+    print(f"Weekly issue digest submitted through {smtp_host}.")
+
 # -------------------------------------------------------------------
 # Execution Entry Point
 # -------------------------------------------------------------------
@@ -659,8 +768,23 @@ def main():
     publish_digest = (
         os.getenv("PUBLISH_WEEKLY_DIGEST", "").strip().lower() == "true"
     )
+    digest_issue = None
     if publish_digest:
-        publish_weekly_digest(top_issues_by_repo)
+        digest_issue = publish_weekly_digest(top_issues_by_repo)
+
+    send_email = (
+        os.getenv("SEND_WEEKLY_EMAIL", "").strip().lower() == "true"
+    )
+    if send_email:
+        digest_issue_url = (
+            digest_issue.get("html_url", "")
+            if digest_issue
+            else ""
+        )
+        send_weekly_email(
+            top_issues_by_repo,
+            digest_issue_url=digest_issue_url
+        )
 
 if __name__ == "__main__":
     main()
