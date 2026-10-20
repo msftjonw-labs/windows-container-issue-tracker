@@ -4,6 +4,7 @@ import smtplib
 import ssl
 import sys
 import time
+from contextlib import ExitStack
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 import requests
@@ -703,26 +704,39 @@ def send_weekly_email(top_issues_by_repo, digest_issue_url=""):
     )
 
     context = ssl.create_default_context()
-    if smtp_security == "ssl":
-        with smtplib.SMTP_SSL(
-            smtp_host,
-            smtp_port,
-            context=context,
-            timeout=30
-        ) as smtp:
-            smtp.login(smtp_username, smtp_password)
-            smtp.send_message(message)
-    else:
-        with smtplib.SMTP(
-            smtp_host,
-            smtp_port,
-            timeout=30
-        ) as smtp:
-            smtp.ehlo()
-            smtp.starttls(context=context)
-            smtp.ehlo()
-            smtp.login(smtp_username, smtp_password)
-            smtp.send_message(message)
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        with ExitStack() as stack:
+            try:
+                if smtp_security == "ssl":
+                    smtp = stack.enter_context(smtplib.SMTP_SSL(
+                        smtp_host,
+                        smtp_port,
+                        context=context,
+                        timeout=30
+                    ))
+                else:
+                    smtp = stack.enter_context(smtplib.SMTP(
+                        smtp_host,
+                        smtp_port,
+                        timeout=30
+                    ))
+                    smtp.ehlo()
+                    smtp.starttls(context=context)
+                    smtp.ehlo()
+                smtp.login(smtp_username, smtp_password)
+            except (smtplib.SMTPServerDisconnected, ConnectionError, TimeoutError):
+                if attempt == MAX_ATTEMPTS:
+                    raise
+            else:
+                # Do not retry delivery: the server may already have accepted it.
+                smtp.send_message(message)
+                break
+        delay = 2 ** (attempt - 1)
+        print(
+            f"Transient SMTP connection/login failure "
+            f"(attempt {attempt}/{MAX_ATTEMPTS}); retrying in {delay}s..."
+        )
+        time.sleep(delay)
 
     print(f"Weekly issue digest submitted through {smtp_host}.")
 

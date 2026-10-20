@@ -48,6 +48,13 @@ also supports other authenticated SMTP services:
 | `SMTP_FROM_ADDRESS` | Message sender; defaults to `SMTP_USERNAME` |
 | `WEEKLY_EMAIL_RECIPIENTS` | Comma-separated recipients |
 
+Transient SMTP connection or login disconnects and network timeouts get up to
+three attempts, with 1- and 2-second delays and a new TLS connection each time.
+Authentication failures are not retried. Delivery is not retried once sending
+starts, to avoid duplicate emails if the server accepted the message before
+disconnecting. Exhausted retries still fail the workflow; a published digest
+issue remains available.
+
 The older `GMAIL_ADDRESS` and `GMAIL_APP_PASSWORD` environment variables
 remain supported by the Python script for compatibility, but the workflow now
 uses the provider-neutral names.
