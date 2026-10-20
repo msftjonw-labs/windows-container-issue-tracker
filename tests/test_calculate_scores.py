@@ -1,3 +1,4 @@
+import base64
 import unittest
 from unittest.mock import Mock, patch
 
@@ -234,7 +235,7 @@ class SmtpRetryTests(unittest.TestCase):
                 first.send_message.assert_not_called()
                 first.__exit__.assert_called_once()
                 second.login.assert_called_once_with(
-                    "sender@example.com", "password"
+                    "sender@example.com", "password", initial_response_ok=False
                 )
                 second.send_message.assert_called_once()
                 second.__exit__.assert_called_once()
@@ -300,6 +301,52 @@ class SmtpRetryTests(unittest.TestCase):
 
 
 class SendWeeklyEmailTests(unittest.TestCase):
+    @patch.dict("os.environ", {
+        "SMTP_HOST": "smtp.example.com",
+        "SMTP_USERNAME": "sender@example.com",
+        "SMTP_PASSWORD": "password",
+        "WEEKLY_EMAIL_RECIPIENTS": "recipient@example.com"
+    }, clear=False)
+    def test_authenticates_after_server_challenge_without_inline_credentials(self):
+        for security, client_name in (("ssl", "SMTP_SSL"), ("starttls", "SMTP")):
+            with self.subTest(security=security):
+                smtp = calculate_scores.smtplib.SMTP()
+                smtp.esmtp_features = {"auth": "PLAIN LOGIN"}
+                credentials = base64.b64encode(
+                    b"\0sender@example.com\0password"
+                ).decode("ascii")
+
+                def reply(command, args=""):
+                    if command == "AUTH":
+                        if args != "PLAIN":
+                            raise calculate_scores.smtplib.SMTPServerDisconnected(
+                                "Connection unexpectedly closed"
+                            )
+                        return 334, b""
+                    if command == credentials:
+                        return 235, b"Authentication successful"
+                    if command == "QUIT":
+                        return 221, b"Bye"
+                    self.fail(f"Unexpected SMTP command: {command}")
+
+                with (
+                    patch.dict("os.environ", {"SMTP_SECURITY": security}),
+                    patch.object(calculate_scores.smtplib, client_name) as client,
+                    patch.object(smtp, "ehlo", return_value=(250, b"Hello")),
+                    patch.object(smtp, "starttls"),
+                    patch.object(smtp, "docmd", side_effect=reply) as docmd,
+                    patch.object(smtp, "send_message") as send_message,
+                    patch("scripts.calculate_scores.time.sleep")
+                ):
+                    client.return_value.__enter__.return_value = smtp
+
+                    calculate_scores.send_weekly_email({})
+
+                    self.assertEqual(docmd.call_args_list[0].args, ("AUTH", "PLAIN"))
+                    self.assertEqual(docmd.call_args_list[1].args, (credentials,))
+                    client.assert_called_once()
+                    send_message.assert_called_once()
+
     @patch("scripts.calculate_scores.ssl.create_default_context")
     @patch("scripts.calculate_scores.smtplib.SMTP_SSL")
     @patch.dict("os.environ", {
@@ -324,7 +371,8 @@ class SendWeeklyEmailTests(unittest.TestCase):
         )
         smtp.login.assert_called_once_with(
             "sender@example.com",
-            "app-password"
+            "app-password",
+            initial_response_ok=False
         )
         message = smtp.send_message.call_args.args[0]
         self.assertEqual(message["From"], "digest@example.com")
@@ -360,7 +408,8 @@ class SendWeeklyEmailTests(unittest.TestCase):
         smtp.starttls.assert_called_once_with(context=context.return_value)
         smtp.login.assert_called_once_with(
             "sender@example.com",
-            "password"
+            "password",
+            initial_response_ok=False
         )
         smtp.send_message.assert_called_once()
 

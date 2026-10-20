@@ -48,6 +48,10 @@ also supports other authenticated SMTP services:
 | `SMTP_FROM_ADDRESS` | Message sender; defaults to `SMTP_USERNAME` |
 | `WEEKLY_EMAIL_RECIPIENTS` | Comma-separated recipients |
 
+SMTP authentication waits for the server's challenge instead of including
+credentials in the initial `AUTH` command, for compatibility with servers that
+disconnect on inline authentication responses. Both TLS modes use this exchange.
+
 Transient SMTP connection or login disconnects and network timeouts get up to
 three attempts, with 1- and 2-second delays and a new TLS connection each time.
 Authentication failures are not retried. Delivery is not retried once sending
