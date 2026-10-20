@@ -187,6 +187,118 @@ class RunGraphqlTests(unittest.TestCase):
         self.assertEqual([call.args[0] for call in sleep.call_args_list], [1, 2])
 
 
+@patch.dict("os.environ", {
+    "SMTP_HOST": "smtp.example.com",
+    "SMTP_PORT": "465",
+    "SMTP_SECURITY": "ssl",
+    "SMTP_USERNAME": "sender@example.com",
+    "SMTP_PASSWORD": "password",
+    "WEEKLY_EMAIL_RECIPIENTS": "recipient@example.com"
+}, clear=False)
+class SmtpRetryTests(unittest.TestCase):
+    def setUp(self):
+        self.smtp_ssl = self.enterContext(
+            patch("scripts.calculate_scores.smtplib.SMTP_SSL")
+        )
+        self.smtp_starttls = self.enterContext(
+            patch("scripts.calculate_scores.smtplib.SMTP")
+        )
+        self.sleep = self.enterContext(
+            patch("scripts.calculate_scores.time.sleep")
+        )
+
+    def test_retries_login_disconnect_with_a_fresh_tls_connection(self):
+        for security, client in (
+            ("ssl", self.smtp_ssl),
+            ("starttls", self.smtp_starttls)
+        ):
+            with self.subTest(security=security), patch.dict(
+                "os.environ", {"SMTP_SECURITY": security}
+            ):
+                first, second = Mock(), Mock()
+                first.__enter__ = Mock(return_value=first)
+                first.__exit__ = Mock(return_value=False)
+                second.__enter__ = Mock(return_value=second)
+                second.__exit__ = Mock(return_value=False)
+                first.login.side_effect = (
+                    calculate_scores.smtplib.SMTPServerDisconnected(
+                        "Connection unexpectedly closed"
+                    )
+                )
+                client.side_effect = [first, second]
+                self.sleep.reset_mock()
+
+                calculate_scores.send_weekly_email({})
+
+                self.assertEqual(client.call_count, 2)
+                first.send_message.assert_not_called()
+                first.__exit__.assert_called_once()
+                second.login.assert_called_once_with(
+                    "sender@example.com", "password"
+                )
+                second.send_message.assert_called_once()
+                second.__exit__.assert_called_once()
+                if security == "starttls":
+                    first.starttls.assert_called_once()
+                    second.starttls.assert_called_once()
+                self.sleep.assert_called_once_with(1)
+
+    def test_retries_connection_timeout(self):
+        connection = Mock()
+        connection.__enter__ = Mock(return_value=connection)
+        connection.__exit__ = Mock(return_value=False)
+        self.smtp_ssl.side_effect = [TimeoutError(), connection]
+
+        calculate_scores.send_weekly_email({})
+
+        self.assertEqual(self.smtp_ssl.call_count, 2)
+        connection.send_message.assert_called_once()
+        self.sleep.assert_called_once_with(1)
+
+    def test_stops_after_three_login_disconnects(self):
+        smtp = self.smtp_ssl.return_value.__enter__.return_value
+        smtp.login.side_effect = (
+            calculate_scores.smtplib.SMTPServerDisconnected(
+                "Connection unexpectedly closed"
+            )
+        )
+
+        with self.assertRaises(calculate_scores.smtplib.SMTPServerDisconnected):
+            calculate_scores.send_weekly_email({})
+
+        self.assertEqual(self.smtp_ssl.call_count, 3)
+        self.assertEqual([call.args[0] for call in self.sleep.call_args_list], [1, 2])
+        smtp.send_message.assert_not_called()
+
+    def test_does_not_retry_authentication_errors(self):
+        smtp = self.smtp_ssl.return_value.__enter__.return_value
+        smtp.login.side_effect = calculate_scores.smtplib.SMTPAuthenticationError(
+            535, b"Authentication failed"
+        )
+
+        with self.assertRaises(calculate_scores.smtplib.SMTPAuthenticationError):
+            calculate_scores.send_weekly_email({})
+
+        self.smtp_ssl.assert_called_once()
+        self.sleep.assert_not_called()
+        smtp.send_message.assert_not_called()
+
+    def test_does_not_retry_disconnect_during_delivery(self):
+        smtp = self.smtp_ssl.return_value.__enter__.return_value
+        smtp.send_message.side_effect = (
+            calculate_scores.smtplib.SMTPServerDisconnected(
+                "Connection unexpectedly closed"
+            )
+        )
+
+        with self.assertRaises(calculate_scores.smtplib.SMTPServerDisconnected):
+            calculate_scores.send_weekly_email({})
+
+        self.smtp_ssl.assert_called_once()
+        self.sleep.assert_not_called()
+        smtp.send_message.assert_called_once()
+
+
 class SendWeeklyEmailTests(unittest.TestCase):
     @patch("scripts.calculate_scores.ssl.create_default_context")
     @patch("scripts.calculate_scores.smtplib.SMTP_SSL")
