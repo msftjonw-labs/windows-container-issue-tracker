@@ -723,7 +723,7 @@ def send_weekly_email(top_issues_by_repo, digest_issue_url=""):
                     smtp.ehlo()
                     smtp.starttls(context=context)
                     smtp.ehlo()
-                smtp.login(smtp_username, smtp_password)
+                smtp.login(smtp_username, smtp_password, initial_response_ok=False)
             except (smtplib.SMTPServerDisconnected, ConnectionError, TimeoutError):
                 if attempt == MAX_ATTEMPTS:
                     raise
