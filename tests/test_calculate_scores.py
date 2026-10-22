@@ -266,5 +266,34 @@ class SendWeeklyEmailTests(unittest.TestCase):
             calculate_scores.send_weekly_email({})
 
 
+class MainTests(unittest.TestCase):
+    @patch.dict("os.environ", {
+        "PUBLISH_WEEKLY_DIGEST": "false",
+        "SEND_WEEKLY_EMAIL": "true"
+    }, clear=False)
+    def test_email_failure_does_not_fail_scoring_job(self):
+        with (
+            patch("scripts.calculate_scores.TARGET_REPOS", []),
+            patch(
+                "scripts.calculate_scores.get_project_and_field_ids",
+                return_value=("project-1", "score-field", "repo-field")
+            ),
+            patch("scripts.calculate_scores.clear_project_board"),
+            patch(
+                "scripts.calculate_scores.send_weekly_email",
+                side_effect=ValueError(
+                    "WEEKLY_EMAIL_RECIPIENTS must contain at least one address."
+                )
+            ),
+            patch("builtins.print") as print_mock
+        ):
+            calculate_scores.main()
+
+        self.assertTrue(any(
+            call.args[0].startswith("Warning: Weekly email notification failed:")
+            for call in print_mock.call_args_list
+        ))
+
+
 if __name__ == "__main__":
     unittest.main()

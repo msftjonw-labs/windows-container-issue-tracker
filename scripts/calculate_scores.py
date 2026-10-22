@@ -781,10 +781,13 @@ def main():
             if digest_issue
             else ""
         )
-        send_weekly_email(
-            top_issues_by_repo,
-            digest_issue_url=digest_issue_url
-        )
+        try:
+            send_weekly_email(
+                top_issues_by_repo,
+                digest_issue_url=digest_issue_url
+            )
+        except Exception as error:
+            print(f"Warning: Weekly email notification failed: {error}")
 
 if __name__ == "__main__":
     main()
