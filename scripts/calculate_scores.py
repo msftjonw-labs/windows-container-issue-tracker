@@ -626,11 +626,11 @@ def send_success_email(top_issues_by_repo):
         print("Email notification skipped: EMAIL_TO is not configured.")
         return
 
-    sender = os.getenv("EMAIL_USER", "").strip()
-    password = os.getenv("EMAIL_PASSWORD", "")
+    sender = os.getenv("SMTP_USERNAME", "").strip()
+    password = os.getenv("SMTP_PASSWORD", "")
     if not sender or not password:
         raise ValueError(
-            "EMAIL_USER and EMAIL_PASSWORD are required when EMAIL_TO is configured."
+            "SMTP_USERNAME and SMTP_PASSWORD are required when EMAIL_TO is configured."
         )
 
     message = EmailMessage()

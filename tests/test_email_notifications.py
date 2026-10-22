@@ -21,7 +21,7 @@ class SuccessEmailTests(unittest.TestCase):
     @patch("scripts.calculate_scores.smtplib.SMTP_SSL")
     def test_missing_credentials_fails_before_connecting(self, smtp):
         os.environ["EMAIL_TO"] = "recipient@example.com"
-        with self.assertRaisesRegex(ValueError, "EMAIL_USER and EMAIL_PASSWORD"):
+        with self.assertRaisesRegex(ValueError, "SMTP_USERNAME and SMTP_PASSWORD"):
             calculate_scores.send_success_email({})
         smtp.assert_not_called()
 
@@ -29,8 +29,8 @@ class SuccessEmailTests(unittest.TestCase):
     def test_sends_summary_over_verified_tls(self, smtp):
         os.environ.update({
             "EMAIL_TO": "recipient@example.com",
-            "EMAIL_USER": "sender@example.com",
-            "EMAIL_PASSWORD": "test-only-password",
+            "SMTP_USERNAME": "sender@example.com",
+            "SMTP_PASSWORD": "test-only-password",
             "GITHUB_WORKFLOW_RUN_URL": "https://github.com/example/repo/actions/runs/1",
             "SMTP_SERVER": "",
             "SMTP_PORT": ""
@@ -59,8 +59,8 @@ class SuccessEmailTests(unittest.TestCase):
     def test_custom_smtp_settings_and_delivery_failure(self, smtp):
         os.environ.update({
             "EMAIL_TO": "recipient@example.com",
-            "EMAIL_USER": "sender@example.com",
-            "EMAIL_PASSWORD": "test-only-password",
+            "SMTP_USERNAME": "sender@example.com",
+            "SMTP_PASSWORD": "test-only-password",
             "SMTP_SERVER": "smtp.example.com",
             "SMTP_PORT": "2465"
         })

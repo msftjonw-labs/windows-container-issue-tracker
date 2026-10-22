@@ -11,11 +11,11 @@ notifications.
 
 After scoring and any scheduled digest publication succeed, scheduled and manual
 runs can send an email containing the issue summary and workflow run link.
-Set these repository Actions secrets (passed to the script as environment variables):
+Set these Actions settings (passed to the script as environment variables):
 
-- `EMAIL_TO`: your personal Gmail address (or another recipient).
-- `EMAIL_USER`: the Gmail account used to send the notification.
-- `EMAIL_PASSWORD`: that account's Google app password, not its regular password.
+- Secret `EMAIL_TO`: your personal Gmail address (or another recipient).
+- Variable `SMTP_USERNAME`: the Gmail account used to send the notification.
+- Secret `SMTP_PASSWORD`: that account's Google app password, not its regular password.
   Enable two-step verification on the sending account and create an app password.
 
 SMTP defaults to `smtp.gmail.com` on port `465`, using certificate-verified
