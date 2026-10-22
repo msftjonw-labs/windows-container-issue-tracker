@@ -1,15 +1,9 @@
 import html
 import os
-import smtplib
 import sys
 import time
 from datetime import datetime, timedelta, timezone
 import requests
-
-if __package__:
-    from .send_success_email import send_success_email
-else:
-    from send_success_email import send_success_email
 
 # -------------------------------------------------------------------
 # Configuration & Environment Setup
@@ -667,11 +661,6 @@ def main():
     )
     if publish_digest:
         publish_weekly_digest(top_issues_by_repo)
-
-    try:
-        send_success_email()
-    except (smtplib.SMTPException, OSError, RuntimeError, ValueError) as error:
-        print(f"Warning: Success email notification failed: {error}")
 
 if __name__ == "__main__":
     main()
