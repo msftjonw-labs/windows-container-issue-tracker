@@ -13,7 +13,7 @@ After scoring and any scheduled digest publication succeed, scheduled and manual
 runs can send an email containing the issue summary and workflow run link.
 Set these Actions settings (passed to the script as environment variables):
 
-- Secret `EMAIL_TO`: your personal Gmail address (or another recipient).
+- Variable `EMAIL_TO`: your personal Gmail address (or another recipient).
 - Variable `SMTP_USERNAME`: the Gmail account used to send the notification.
 - Secret `SMTP_PASSWORD`: that account's Google app password, not its regular password.
   Enable two-step verification on the sending account and create an app password.
