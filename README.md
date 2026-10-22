@@ -21,14 +21,16 @@ approval to use the same service another way.
    Advanced Protection or restricted by a Google Workspace administrator.
 3. In the GitHub repository, open **Settings > Secrets and variables >
    Actions**. Create `SMTP_PASSWORD` as a repository secret, and create the
-   remaining settings as repository variables:
+   settings below as repository variables. `SMTP_HOST` is optional and defaults
+   to `smtp.gmail.com`; `SMTP_SECURITY` defaults to `starttls` and `SMTP_PORT`
+   defaults to `587` for STARTTLS or `465` for SSL.
 
    | Type | Name | Value |
    |---|---|---|
    | Variable | `SMTP_USERNAME` | Full Gmail address used to authenticate |
    | Secret | `SMTP_PASSWORD` | The 16-character Google App Password |
-   | Variable | `SMTP_FROM_ADDRESS` | Sender address, normally the same Gmail address |
-   | Variable | `WEEKLY_EMAIL_RECIPIENTS` | Comma-separated recipient addresses |
+   | Variable | `SMTP_FROM` | Sender address, normally the same Gmail address |
+   | Variable | `SMTP_TO` | Comma-separated recipient addresses |
 
 4. Run **Calculate Issue Priority Scores** manually from the Actions tab,
    select the `emailtest` branch, enable **Send the digest email during this
@@ -39,8 +41,9 @@ automatically. SMTP configuration is used only by the separate email job; an
 email failure is reported independently and does not undo a successful project
 sync.
 
-The workflow uses `smtp.gmail.com` on port `465` with implicit TLS. The script
-also supports other authenticated SMTP services:
+The workflow defaults to `smtp.gmail.com` with STARTTLS on port `587`. The
+script also supports implicit TLS and authenticated or unauthenticated SMTP
+relays:
 
 | Setting | Description |
 |---|---|
@@ -49,12 +52,12 @@ also supports other authenticated SMTP services:
 | `SMTP_SECURITY` | `ssl` for implicit TLS or `starttls` for explicit TLS |
 | `SMTP_USERNAME` | SMTP login |
 | `SMTP_PASSWORD` | SMTP password or provider-issued API/app password |
-| `SMTP_FROM_ADDRESS` | Message sender; defaults to `SMTP_USERNAME` |
-| `WEEKLY_EMAIL_RECIPIENTS` | Comma-separated recipients |
+| `SMTP_FROM` | Message sender |
+| `SMTP_TO` | Comma-separated recipients |
 
-The older `GMAIL_ADDRESS` and `GMAIL_APP_PASSWORD` environment variables
-remain supported by the Python script for compatibility, but the workflow now
-uses the provider-neutral names.
+`SMTP_FROM_ADDRESS` and `WEEKLY_EMAIL_RECIPIENTS` remain supported as fallback
+names for sender and recipient settings. `SMTP_USERNAME` and `SMTP_PASSWORD`
+must either both be provided or both be omitted for an unauthenticated relay.
 
 ### Other delivery options
 

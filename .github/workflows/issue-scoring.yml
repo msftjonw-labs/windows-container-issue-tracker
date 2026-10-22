@@ -103,11 +103,11 @@ jobs:
 
       - name: Send Weekly Email
         env:
-          SMTP_HOST: "smtp.gmail.com"
-          SMTP_PORT: "465"
-          SMTP_SECURITY: "ssl"
+          SMTP_HOST: ${{ vars.SMTP_HOST || 'smtp.gmail.com' }}
+          SMTP_PORT: ${{ vars.SMTP_PORT }}
+          SMTP_SECURITY: ${{ vars.SMTP_SECURITY || 'starttls' }}
           SMTP_USERNAME: ${{ vars.SMTP_USERNAME }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-          SMTP_FROM_ADDRESS: ${{ vars.SMTP_FROM_ADDRESS }}
-          WEEKLY_EMAIL_RECIPIENTS: ${{ vars.WEEKLY_EMAIL_RECIPIENTS }}
+          SMTP_FROM: ${{ vars.SMTP_FROM || vars.SMTP_FROM_ADDRESS }}
+          SMTP_TO: ${{ vars.SMTP_TO || vars.WEEKLY_EMAIL_RECIPIENTS }}
         run: python scripts/send_weekly_email.py weekly-email-payload.json
