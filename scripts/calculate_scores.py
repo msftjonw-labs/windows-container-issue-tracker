@@ -1,5 +1,4 @@
 import html
-import json
 import os
 import sys
 import time
@@ -22,7 +21,7 @@ DIGEST_LABELS = [
     label.strip()
     for label in os.getenv(
         "DIGEST_LABELS",
-        "weekly-digest,ready-to-email"
+        "weekly-digest"
     ).split(",")
     if label.strip()
 ]
@@ -628,10 +627,6 @@ def publish_weekly_digest(top_issues_by_repo):
     print(f"Weekly digest published: {digest_issue['html_url']}")
     return digest_issue
 
-def write_weekly_email_payload(html_body):
-    with open("weekly-email-payload.json", "w", encoding="utf-8") as payload_file:
-        json.dump({"html": html_body}, payload_file)
-
 # -------------------------------------------------------------------
 # Execution Entry Point
 # -------------------------------------------------------------------
@@ -677,22 +672,6 @@ def main():
     digest_issue = None
     if publish_digest:
         digest_issue = publish_weekly_digest(top_issues_by_repo)
-
-    send_email = (
-        os.getenv("SEND_WEEKLY_EMAIL", "").strip().lower() == "true"
-    )
-    if send_email:
-        digest_issue_url = (
-            digest_issue.get("html_url", "")
-            if digest_issue
-            else ""
-        )
-        write_weekly_email_payload(
-            build_digest_body(
-                top_issues_by_repo,
-                digest_issue_url=digest_issue_url
-            )
-        )
 
 if __name__ == "__main__":
     main()

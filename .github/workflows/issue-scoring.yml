@@ -4,12 +4,6 @@ on:
   schedule:
     - cron: '0 17 * * 1' # Runs every Monday at 17:00 UTC
   workflow_dispatch:
-    inputs:
-      send_weekly_email:
-        description: "Send the digest email during this manual run"
-        required: true
-        default: false
-        type: boolean
 
 permissions:
   contents: read
@@ -53,10 +47,8 @@ jobs:
 
           # Publish a durable digest only after a scheduled refresh completes
           DIGEST_REPOSITORY: "msftjonw-labs/windows-container-issue-tracker"
-          DIGEST_LABELS: "weekly-digest,ready-to-email"
+          DIGEST_LABELS: "weekly-digest"
           PUBLISH_WEEKLY_DIGEST: ${{ github.event_name == 'schedule' }}
-          SEND_WEEKLY_EMAIL: >-
-            ${{ github.event_name == 'schedule' || inputs.send_weekly_email }}
           GITHUB_WORKFLOW_RUN_URL: >-
             https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
@@ -80,34 +72,3 @@ jobs:
             microsoft/containers-toolkit,
             Azure/AKS
         run: python scripts/calculate_scores.py
-
-      - name: Upload Email Payload
-        if: ${{ github.event_name == 'schedule' || inputs.send_weekly_email }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: weekly-email-payload
-          path: weekly-email-payload.json
-
-  send-weekly-email:
-    needs: score-issues
-    if: ${{ github.event_name == 'schedule' || inputs.send_weekly_email }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Download Email Payload
-        uses: actions/download-artifact@v4
-        with:
-          name: weekly-email-payload
-
-      - name: Send Weekly Email
-        env:
-          SMTP_HOST: ${{ vars.SMTP_HOST || 'smtp.gmail.com' }}
-          SMTP_PORT: ${{ vars.SMTP_PORT }}
-          SMTP_SECURITY: ${{ vars.SMTP_SECURITY || 'starttls' }}
-          SMTP_USERNAME: ${{ vars.SMTP_USERNAME }}
-          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-          SMTP_FROM: ${{ vars.SMTP_FROM || vars.SMTP_FROM_ADDRESS }}
-          SMTP_TO: ${{ vars.SMTP_TO || vars.WEEKLY_EMAIL_RECIPIENTS }}
-        run: python scripts/send_weekly_email.py weekly-email-payload.json

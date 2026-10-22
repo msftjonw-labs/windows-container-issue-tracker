@@ -186,58 +186,5 @@ class RunGraphqlTests(unittest.TestCase):
         self.assertEqual(post.call_count, calculate_scores.MAX_GRAPHQL_ATTEMPTS)
         self.assertEqual([call.args[0] for call in sleep.call_args_list], [1, 2])
 
-
-class MainTests(unittest.TestCase):
-    @patch.dict("os.environ", {
-        "PUBLISH_WEEKLY_DIGEST": "false",
-        "SEND_WEEKLY_EMAIL": "true"
-    }, clear=False)
-    def test_writes_email_payload_after_project_sync(self):
-        events = []
-        with (
-            patch("scripts.calculate_scores.TARGET_REPOS", []),
-            patch(
-                "scripts.calculate_scores.get_project_and_field_ids",
-                side_effect=lambda: (
-                    events.append("project"),
-                    ("project-1", "score-field", "repo-field")
-                )[1]
-            ),
-            patch(
-                "scripts.calculate_scores.clear_project_board",
-                side_effect=lambda project_id: events.append("sync")
-            ),
-            patch(
-                "scripts.calculate_scores.write_weekly_email_payload",
-                side_effect=lambda body: events.append("payload")
-            )
-        ):
-            calculate_scores.main()
-
-        self.assertEqual(events, ["project", "sync", "payload"])
-
-    @patch.dict("os.environ", {
-        "PUBLISH_WEEKLY_DIGEST": "false",
-        "SEND_WEEKLY_EMAIL": "true"
-    }, clear=False)
-    def test_does_not_write_payload_when_project_sync_fails(self):
-        with (
-            patch("scripts.calculate_scores.TARGET_REPOS", []),
-            patch(
-                "scripts.calculate_scores.get_project_and_field_ids",
-                return_value=("project-1", "score-field", "repo-field")
-            ),
-            patch(
-                "scripts.calculate_scores.clear_project_board",
-                side_effect=RuntimeError("Project sync failed")
-            ),
-            patch("scripts.calculate_scores.write_weekly_email_payload") as write
-        ):
-            with self.assertRaisesRegex(RuntimeError, "Project sync failed"):
-                calculate_scores.main()
-
-        write.assert_not_called()
-
-
 if __name__ == "__main__":
     unittest.main()
