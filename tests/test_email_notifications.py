@@ -72,12 +72,19 @@ class SuccessEmailTests(unittest.TestCase):
 
 
 class SuccessEmailFlowTests(unittest.TestCase):
-    def run_flow(self, publish_digest, scoring_error=None, digest_error=None):
+    def run_flow(
+        self,
+        publish_digest,
+        scoring_error=None,
+        digest_error=None,
+        email_error=None
+    ):
         calls = Mock()
         calls.project.return_value = ("project", "score", "repo")
         calls.fetch.return_value = []
         calls.clear.side_effect = scoring_error
         calls.digest.side_effect = digest_error
+        calls.email.side_effect = email_error
         with (
             patch.dict(os.environ, {"PUBLISH_WEEKLY_DIGEST": publish_digest}),
             patch.object(calculate_scores, "TARGET_REPOS", ["example/repo"]),
@@ -113,6 +120,15 @@ class SuccessEmailFlowTests(unittest.TestCase):
     def test_digest_failure_does_not_send_email(self):
         calls = self.run_flow("true", digest_error=RuntimeError("digest failed"))
         calls.email.assert_not_called()
+
+    def test_email_failure_does_not_fail_scoring(self):
+        calls = self.run_flow(
+            "false",
+            email_error=smtplib.SMTPServerDisconnected(
+                "Connection unexpectedly closed"
+            )
+        )
+        calls.email.assert_called_once_with({"example/repo": []})
 
 
 if __name__ == "__main__":

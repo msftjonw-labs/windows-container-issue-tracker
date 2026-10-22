@@ -699,7 +699,10 @@ def main():
     if publish_digest:
         publish_weekly_digest(top_issues_by_repo)
 
-    send_success_email(top_issues_by_repo)
+    try:
+        send_success_email(top_issues_by_repo)
+    except (smtplib.SMTPException, OSError, ValueError) as error:
+        print(f"Warning: Success email notification failed: {error}")
 
 if __name__ == "__main__":
     main()
