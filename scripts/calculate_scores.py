@@ -1,8 +1,11 @@
 import html
 import os
+import smtplib
+import ssl
 import sys
 import time
 from datetime import datetime, timedelta, timezone
+from email.message import EmailMessage
 import requests
 
 # -------------------------------------------------------------------
@@ -617,6 +620,40 @@ def publish_weekly_digest(top_issues_by_repo):
     print(f"Weekly digest published: {digest_issue['html_url']}")
     return digest_issue
 
+def send_success_email(top_issues_by_repo):
+    recipient = os.getenv("EMAIL_TO", "").strip()
+    if not recipient:
+        print("Email notification skipped: EMAIL_TO is not configured.")
+        return
+
+    sender = os.getenv("EMAIL_USER", "").strip()
+    password = os.getenv("EMAIL_PASSWORD", "")
+    if not sender or not password:
+        raise ValueError(
+            "EMAIL_USER and EMAIL_PASSWORD are required when EMAIL_TO is configured."
+        )
+
+    message = EmailMessage()
+    message["Subject"] = "Issue priority scoring completed successfully"
+    message["From"] = sender
+    message["To"] = recipient
+    workflow_url = os.getenv("GITHUB_WORKFLOW_RUN_URL", "")
+    message.set_content(
+        "The issue priority scoring workflow completed successfully.\n"
+        f"Workflow run: {workflow_url}\n"
+    )
+    message.add_alternative(build_digest_body(top_issues_by_repo), subtype="html")
+
+    with smtplib.SMTP_SSL(
+        os.getenv("SMTP_SERVER") or "smtp.gmail.com",
+        int(os.getenv("SMTP_PORT") or "465"),
+        context=ssl.create_default_context(),
+        timeout=30
+    ) as smtp:
+        smtp.login(sender, password)
+        smtp.send_message(message)
+    print("Success email notification sent.")
+
 # -------------------------------------------------------------------
 # Execution Entry Point
 # -------------------------------------------------------------------
@@ -661,6 +698,8 @@ def main():
     )
     if publish_digest:
         publish_weekly_digest(top_issues_by_repo)
+
+    send_success_email(top_issues_by_repo)
 
 if __name__ == "__main__":
     main()
