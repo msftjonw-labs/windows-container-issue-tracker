@@ -72,3 +72,15 @@ jobs:
             microsoft/containers-toolkit,
             Azure/AKS
         run: python scripts/calculate_scores.py
+
+      - name: Email scheduled run status
+        if: ${{ always() && github.event_name == 'schedule' }}
+        env:
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          SMTP_FROM: ${{ secrets.SMTP_FROM }}
+          NOTIFICATION_EMAIL_TO: ${{ secrets.NOTIFICATION_EMAIL_TO }}
+          RUN_STATUS: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 scripts/notify_run_status.py
