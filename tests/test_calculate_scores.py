@@ -187,112 +187,56 @@ class RunGraphqlTests(unittest.TestCase):
         self.assertEqual([call.args[0] for call in sleep.call_args_list], [1, 2])
 
 
-class SendWeeklyEmailTests(unittest.TestCase):
-    @patch("scripts.calculate_scores.ssl.create_default_context")
-    @patch("scripts.calculate_scores.smtplib.SMTP_SSL")
-    @patch.dict("os.environ", {
-        "SMTP_HOST": "smtp.gmail.com",
-        "SMTP_PORT": "465",
-        "SMTP_SECURITY": "ssl",
-        "SMTP_USERNAME": "sender@example.com",
-        "SMTP_PASSWORD": "app-password",
-        "SMTP_FROM_ADDRESS": "digest@example.com",
-        "WEEKLY_EMAIL_RECIPIENTS": "one@example.com,two@example.com"
-    }, clear=False)
-    def test_sends_html_digest_over_implicit_tls(self, smtp_ssl, context):
-        smtp = smtp_ssl.return_value.__enter__.return_value
-
-        calculate_scores.send_weekly_email({}, "https://example.com/digest")
-
-        smtp_ssl.assert_called_once_with(
-            "smtp.gmail.com",
-            465,
-            context=context.return_value,
-            timeout=30
-        )
-        smtp.login.assert_called_once_with(
-            "sender@example.com",
-            "app-password"
-        )
-        message = smtp.send_message.call_args.args[0]
-        self.assertEqual(message["From"], "digest@example.com")
-        self.assertEqual(
-            message["To"],
-            "one@example.com, two@example.com"
-        )
-        self.assertIn(
-            "https://example.com/digest",
-            message.get_body(preferencelist=("html",)).get_content()
-        )
-
-    @patch("scripts.calculate_scores.ssl.create_default_context")
-    @patch("scripts.calculate_scores.smtplib.SMTP")
-    @patch.dict("os.environ", {
-        "SMTP_HOST": "smtp.example.com",
-        "SMTP_PORT": "587",
-        "SMTP_SECURITY": "starttls",
-        "SMTP_USERNAME": "sender@example.com",
-        "SMTP_PASSWORD": "password",
-        "WEEKLY_EMAIL_RECIPIENTS": "recipient@example.com"
-    }, clear=False)
-    def test_sends_digest_over_starttls(self, smtp_client, context):
-        smtp = smtp_client.return_value.__enter__.return_value
-
-        calculate_scores.send_weekly_email({})
-
-        smtp_client.assert_called_once_with(
-            "smtp.example.com",
-            587,
-            timeout=30
-        )
-        smtp.starttls.assert_called_once_with(context=context.return_value)
-        smtp.login.assert_called_once_with(
-            "sender@example.com",
-            "password"
-        )
-        smtp.send_message.assert_called_once()
-
-    @patch.dict("os.environ", {
-        "SMTP_SECURITY": "none",
-        "SMTP_USERNAME": "sender@example.com",
-        "SMTP_PASSWORD": "password",
-        "WEEKLY_EMAIL_RECIPIENTS": "recipient@example.com"
-    }, clear=False)
-    def test_rejects_unencrypted_smtp(self):
-        with self.assertRaisesRegex(
-            ValueError,
-            "SMTP_SECURITY must be either 'ssl' or 'starttls'"
-        ):
-            calculate_scores.send_weekly_email({})
-
-
 class MainTests(unittest.TestCase):
     @patch.dict("os.environ", {
         "PUBLISH_WEEKLY_DIGEST": "false",
         "SEND_WEEKLY_EMAIL": "true"
     }, clear=False)
-    def test_email_failure_does_not_fail_scoring_job(self):
+    def test_writes_email_payload_after_project_sync(self):
+        events = []
+        with (
+            patch("scripts.calculate_scores.TARGET_REPOS", []),
+            patch(
+                "scripts.calculate_scores.get_project_and_field_ids",
+                side_effect=lambda: (
+                    events.append("project"),
+                    ("project-1", "score-field", "repo-field")
+                )[1]
+            ),
+            patch(
+                "scripts.calculate_scores.clear_project_board",
+                side_effect=lambda project_id: events.append("sync")
+            ),
+            patch(
+                "scripts.calculate_scores.write_weekly_email_payload",
+                side_effect=lambda body: events.append("payload")
+            )
+        ):
+            calculate_scores.main()
+
+        self.assertEqual(events, ["project", "sync", "payload"])
+
+    @patch.dict("os.environ", {
+        "PUBLISH_WEEKLY_DIGEST": "false",
+        "SEND_WEEKLY_EMAIL": "true"
+    }, clear=False)
+    def test_does_not_write_payload_when_project_sync_fails(self):
         with (
             patch("scripts.calculate_scores.TARGET_REPOS", []),
             patch(
                 "scripts.calculate_scores.get_project_and_field_ids",
                 return_value=("project-1", "score-field", "repo-field")
             ),
-            patch("scripts.calculate_scores.clear_project_board"),
             patch(
-                "scripts.calculate_scores.send_weekly_email",
-                side_effect=ValueError(
-                    "WEEKLY_EMAIL_RECIPIENTS must contain at least one address."
-                )
+                "scripts.calculate_scores.clear_project_board",
+                side_effect=RuntimeError("Project sync failed")
             ),
-            patch("builtins.print") as print_mock
+            patch("scripts.calculate_scores.write_weekly_email_payload") as write
         ):
-            calculate_scores.main()
+            with self.assertRaisesRegex(RuntimeError, "Project sync failed"):
+                calculate_scores.main()
 
-        self.assertTrue(any(
-            call.args[0].startswith("Warning: Weekly email notification failed:")
-            for call in print_mock.call_args_list
-        ))
+        write.assert_not_called()
 
 
 if __name__ == "__main__":

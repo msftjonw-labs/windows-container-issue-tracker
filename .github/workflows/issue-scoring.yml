@@ -54,13 +54,6 @@ jobs:
           PUBLISH_WEEKLY_DIGEST: ${{ github.event_name == 'schedule' }}
           SEND_WEEKLY_EMAIL: >-
             ${{ github.event_name == 'schedule' || inputs.send_weekly_email }}
-          SMTP_HOST: "smtp.gmail.com"
-          SMTP_PORT: "465"
-          SMTP_SECURITY: "ssl"
-          SMTP_USERNAME: ${{ vars.SMTP_USERNAME }}
-          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-          SMTP_FROM_ADDRESS: ${{ vars.SMTP_FROM_ADDRESS }}
-          WEEKLY_EMAIL_RECIPIENTS: ${{ vars.WEEKLY_EMAIL_RECIPIENTS }}
           GITHUB_WORKFLOW_RUN_URL: >-
             https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
@@ -84,3 +77,34 @@ jobs:
             microsoft/containers-toolkit,
             Azure/AKS
         run: python scripts/calculate_scores.py
+
+      - name: Upload Email Payload
+        if: ${{ github.event_name == 'schedule' || inputs.send_weekly_email }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: weekly-email-payload
+          path: weekly-email-payload.json
+
+  send-weekly-email:
+    needs: score-issues
+    if: ${{ github.event_name == 'schedule' || inputs.send_weekly_email }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Download Email Payload
+        uses: actions/download-artifact@v4
+        with:
+          name: weekly-email-payload
+
+      - name: Send Weekly Email
+        env:
+          SMTP_HOST: "smtp.gmail.com"
+          SMTP_PORT: "465"
+          SMTP_SECURITY: "ssl"
+          SMTP_USERNAME: ${{ vars.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          SMTP_FROM_ADDRESS: ${{ vars.SMTP_FROM_ADDRESS }}
+          WEEKLY_EMAIL_RECIPIENTS: ${{ vars.WEEKLY_EMAIL_RECIPIENTS }}
+        run: python scripts/send_weekly_email.py weekly-email-payload.json
