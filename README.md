@@ -2,9 +2,11 @@
 
 ## Weekly digest email
 
-The scheduled GitHub Actions workflow can send the generated HTML digest
-directly through an SMTP server. This does not use the Power Automate GitHub
-or Gmail connectors.
+The GitHub Actions workflow first refreshes the GitHub Project v2 board and
+publishes the scheduled digest issue. When email is enabled, a separate job
+sends the generated HTML digest through SMTP only after the scoring and project
+sync job succeeds. This does not use the Power Automate GitHub or Gmail
+connectors.
 
 Before using this route, confirm that sending repository data through the
 chosen mail service is permitted by your organization's security and DLP
@@ -33,7 +35,9 @@ approval to use the same service another way.
    manual run**, and use a test mailbox for the first run.
 
 The manual email option defaults to off. Scheduled runs send the email
-automatically.
+automatically. SMTP configuration is used only by the separate email job; an
+email failure is reported independently and does not undo a successful project
+sync.
 
 The workflow uses `smtp.gmail.com` on port `465` with implicit TLS. The script
 also supports other authenticated SMTP services:
