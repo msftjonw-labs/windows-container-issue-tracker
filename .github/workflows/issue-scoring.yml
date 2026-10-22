@@ -4,12 +4,9 @@ on:
   schedule:
     - cron: '0 17 * * 1' # Runs every Monday at 17:00 UTC
   workflow_dispatch:
-    inputs:
-      send_weekly_email:
-        description: "Send the digest email during this manual run"
-        required: true
-        default: false
-        type: boolean
+
+permissions:
+  contents: read
 
 jobs:
   score-issues:
@@ -50,17 +47,8 @@ jobs:
 
           # Publish a durable digest only after a scheduled refresh completes
           DIGEST_REPOSITORY: "msftjonw-labs/windows-container-issue-tracker"
-          DIGEST_LABELS: "weekly-digest,ready-to-email"
+          DIGEST_LABELS: "weekly-digest"
           PUBLISH_WEEKLY_DIGEST: ${{ github.event_name == 'schedule' }}
-          SEND_WEEKLY_EMAIL: >-
-            ${{ github.event_name == 'schedule' || inputs.send_weekly_email }}
-          SMTP_HOST: "smtp.gmail.com"
-          SMTP_PORT: "465"
-          SMTP_SECURITY: "ssl"
-          SMTP_USERNAME: ${{ vars.SMTP_USERNAME }}
-          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-          SMTP_FROM_ADDRESS: ${{ vars.SMTP_FROM_ADDRESS }}
-          WEEKLY_EMAIL_RECIPIENTS: ${{ vars.WEEKLY_EMAIL_RECIPIENTS }}
           GITHUB_WORKFLOW_RUN_URL: >-
             https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
