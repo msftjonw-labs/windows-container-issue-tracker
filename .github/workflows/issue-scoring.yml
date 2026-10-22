@@ -56,7 +56,7 @@ jobs:
           SMTP_USERNAME: ${{ vars.SMTP_USERNAME }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           SMTP_PORT: ${{ vars.SMTP_PORT }}
-          SMTP_SECURITY: ${{ vars.SMTP_SECURITY || 'ssl' }}
+          SMTP_SECURITY: ${{ vars.SMTP_SECURITY || 'starttls' }}
 
           # Target public repositories
           TARGET_REPOS: >-

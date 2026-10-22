@@ -67,7 +67,6 @@ class SuccessEmailTests(unittest.TestCase):
             "SMTP_HOST": "smtp.example.com",
             "SMTP_FROM": "sender@example.com",
             "SMTP_TO": "recipient@example.com",
-            "SMTP_SECURITY": "starttls",
             "SMTP_USERNAME": "sender@example.com",
             "SMTP_PASSWORD": "test-only-password"
         })
