@@ -488,15 +488,15 @@ class PathRenderingAndErrorsTests(unittest.TestCase):
         self.assertEqual(bullets[:3], lines[:3])
         self.assertIn("Observation week: 2026-W43 | frozen.", bullets)
         self.assertIn(
-            "H1: Windows DNS hypothesis — Decision: qualifying | area: networking | streak: 1/3",
+            "H1: Windows DNS hypothesis; Decision: qualifying | area: networking | streak: 1/3",
             bullets,
         )
         self.assertIn(
-            "H2: Windows gMSA hypothesis — Decision: provisional | area: security | streak: 0/3",
+            "H2: Windows gMSA hypothesis; Decision: provisional | area: security | streak: 0/3",
             bullets,
         )
-        h1_table = next(section for section in sections if section["title"] == "H1 supporting evidence")
-        h2_table = next(section for section in sections if section["title"] == "H2 supporting evidence")
+        h1_table = next(section for section in sections if section.get("title") == "H1 supporting evidence")
+        h2_table = next(section for section in sections if section.get("title") == "H2 supporting evidence")
         self.assertEqual(h1_table["rows"][1][0], "example/repo")
         self.assertIn("Windows container DNS resolution fails.", h1_table["rows"][1][2])
         self.assertEqual(len(h2_table["rows"]), 2)
@@ -508,7 +508,7 @@ class PathRenderingAndErrorsTests(unittest.TestCase):
         report._write_pdf([], output, document_sections=sections)
         payload = output.write_bytes.call_args.args[0]
         self.assertTrue(payload.startswith(b"%PDF-1.4"))
-        self.assertIn(b" H1 supporting evidence", payload)
+        self.assertIn(b"(H1 supporting evidence)", payload)
         self.assertIn(b"Windows DNS hypothesis", payload)
         self.assertIn(b"Repository", payload)
         self.assertTrue(payload.endswith(b"%%EOF\n"))

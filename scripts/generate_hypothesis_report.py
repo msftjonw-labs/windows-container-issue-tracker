@@ -388,7 +388,7 @@ def _report_pdf_sections(lines):
         hypothesis = hypotheses.get(hypothesis_id)
         if hypothesis:
             summary.append(
-                f"{hypothesis_id}: {hypothesis['title']} — Decision: {hypothesis['decision']}"
+                f"{hypothesis_id}: {hypothesis['title']}; Decision: {hypothesis['decision']}"
             )
             omitted.add(hypothesis["title_index"])
             omitted.add(hypothesis["title_index"] + 1)

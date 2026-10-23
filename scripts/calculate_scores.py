@@ -660,6 +660,8 @@ def _write_document_pdf(sections, output_path, page_size=(842, 595), margin=36):
         nonlocal cursor_y
         if not rows or not widths or sum(widths) + 2 * margin > page_width:
             raise ValueError("Invalid PDF document table layout")
+        if cursor_y - 24 < bottom:
+            save_page()
         commands.append(
             f"BT /F1 11 Tf {margin} {cursor_y - 13} Td "
             f"({_escape_pdf_text(title)}) Tj ET"
