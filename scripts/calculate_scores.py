@@ -3,7 +3,10 @@ import os
 import sys
 import time
 from datetime import datetime, timedelta, timezone
-import requests
+if __package__:
+    from .github_client import GitHubClient
+else:
+    from github_client import GitHubClient
 
 # -------------------------------------------------------------------
 # Configuration & Environment Setup
@@ -69,9 +72,7 @@ headers = {
     "Accept": "application/vnd.github+json"
 }
 
-MAX_ATTEMPTS = 3
-TRANSIENT_STATUS_CODES = {500, 502, 503, 504}
-TRANSIENT_ERROR_MARKERS = ("something went wrong while executing your query", "timeout")
+client = GitHubClient(GH_TOKEN)
 # Retrieve open issues updated within the past five years while retaining the
 # 730-day activity requirement below.
 ISSUE_LOOKBACK_DAYS = 1825
@@ -82,35 +83,17 @@ STANDARD_LOOKBACK_DAYS = 730
 TWO_YEARS_AGO = datetime.now(timezone.utc) - timedelta(days=STANDARD_LOOKBACK_DAYS)
 SINCE_TWO_YEARS_TIMESTAMP = TWO_YEARS_AGO.isoformat()
 
-MAX_GRAPHQL_ATTEMPTS = 3
-TRANSIENT_STATUS_CODES = {500, 502, 503, 504}
-TRANSIENT_ERROR_MARKERS = ("something went wrong while executing your query", "timeout")
-ISSUE_PAGE_SIZE = 10
+ISSUE_BATCH_SIZE = 10
 
 def run_graphql(query, variables=None):
-    for attempt in range(1, MAX_ATTEMPTS + 1):
-        response = requests.post(
-            GH_GRAPHQL_URL,
-            json={"query": query, "variables": variables},
-            headers=headers
-        )
-        if response.status_code != 200:
-            error = Exception(f"GraphQL query failed ({response.status_code}): {response.text}")
-            transient = response.status_code in TRANSIENT_STATUS_CODES
-        else:
-            res_data = response.json()
-            if "errors" not in res_data:
-                return res_data["data"]
-            error = Exception(f"GraphQL Errors: {res_data['errors']}")
-            transient = any(m in str(res_data["errors"]).lower() for m in TRANSIENT_ERROR_MARKERS)
-        if not transient or attempt == MAX_ATTEMPTS:
-            raise error
-        delay = 2 ** (attempt - 1)
-        print(f"  └─ Transient GraphQL failure (attempt {attempt}/{MAX_ATTEMPTS}); retrying in {delay}s...")
-        time.sleep(delay)
+    return client.request(
+        "POST", GH_GRAPHQL_URL, graphql=True,
+        mutation=query.lstrip().startswith("mutation"),
+        json={"query": query, "variables": variables},
+    )
 
 # -------------------------------------------------------------------
-# 1. Organization GitHub Project v2 Discovery & Board Cleanup
+# 1. Organization GitHub Project v2 Discovery & Snapshot
 # -------------------------------------------------------------------
 def get_project_and_field_ids():
     query = """
@@ -160,50 +143,49 @@ def get_project_and_field_ids():
         
     return project_id, score_field_id, repo_field_id
 
-def clear_project_board(project_id):
+def get_project_items(project_id):
     query = """
-    query($projectId: ID!) {
+    query($projectId: ID!, $after: String, $scoreName: String!, $sourceName: String!) {
       node(id: $projectId) {
         ... on ProjectV2 {
-          items(first: 100) {
+          items(first: 100, after: $after) {
+            pageInfo { hasNextPage endCursor }
             nodes {
               id
+              content {
+                ... on Issue {
+                  id
+                  repository { nameWithOwner }
+                }
+              }
+              score: fieldValueByName(name: $scoreName) {
+                ... on ProjectV2ItemFieldNumberValue { number }
+              }
+              source: fieldValueByName(name: $sourceName) {
+                ... on ProjectV2ItemFieldTextValue { text }
+              }
             }
           }
         }
       }
     }
     """
-    delete_mutation = """
-    mutation($projectId: ID!, $itemId: ID!) {
-      deleteProjectV2Item(input: {projectId: $projectId, itemId: $itemId}) {
-        deletedItemId
-      }
-    }
-    """
-    deleted_count = 0
-
+    items = []
+    after = None
     while True:
-        data = run_graphql(query, {"projectId": project_id})
-        items = data.get("node", {}).get("items", {}).get("nodes", [])
-        if not items:
+        data = run_graphql(query, {
+            "projectId": project_id, "after": after,
+            "scoreName": SCORE_FIELD_NAME, "sourceName": REPO_FIELD_NAME,
+        })
+        connection = data["node"]["items"]
+        items.extend(connection["nodes"])
+        if not connection["pageInfo"]["hasNextPage"]:
             break
-
-        print(f"Clearing batch of {len(items)} existing Project items...")
-        for item in items:
-            run_graphql(
-                delete_mutation,
-                {"projectId": project_id, "itemId": item["id"]}
-            )
-            deleted_count += 1
-
-    if deleted_count == 0:
-        print("Board is already empty.")
-    else:
-        print(
-            f"Project board pre-clearing complete "
-            f"({deleted_count} items removed).\n"
-        )
+        next_cursor = connection["pageInfo"]["endCursor"]
+        if not next_cursor or next_cursor == after:
+            raise RuntimeError("Project pagination did not advance.")
+        after = next_cursor
+    return items
 
 # -------------------------------------------------------------------
 # 2. Label Resolution & Fetching (730-Day Activity Window)
@@ -247,10 +229,10 @@ def label_matches_repo(repo_full_name, label_names, required_label):
         return required_label.strip().lower() in label_names
     return True
 
-def fetch_issue_graphql_details(node_id):
+def fetch_issue_graphql_details(node_ids):
     query = """
-    query($id: ID!) {
-      node(id: $id) {
+    query($ids: [ID!]!) {
+      nodes(ids: $ids) {
         ... on Issue {
           id
           number
@@ -266,14 +248,16 @@ def fetch_issue_graphql_details(node_id):
       }
     }
     """
-    data = run_graphql(query, {"id": node_id})
-    return data.get("node")
+    data = run_graphql(query, {"ids": node_ids})
+    details = {node["id"]: node for node in data["nodes"] if node}
+    if set(details) != set(node_ids):
+        raise RuntimeError("GitHub returned incomplete issue details; preserving the Project.")
+    return details
 
 def fetch_external_repo_issues(repo_full_name):
     parts = repo_full_name.strip().split("/")
-    if len(parts) != 2:
-        print(f"Skipping invalid target format '{repo_full_name}'. Expected 'owner/repo'.")
-        return []
+    if len(parts) != 2 or not all(parts):
+        raise ValueError(f"Invalid target format '{repo_full_name}'. Expected 'owner/repo'.")
 
     owner, repo = parts[0], parts[1]
     required_label = get_required_label_for_repo(repo_full_name)
@@ -306,14 +290,14 @@ def fetch_external_repo_issues(repo_full_name):
 
     while True:
         params["page"] = page
-        response = requests.get(url, headers=headers, params=params.copy())
-        if response.status_code != 200:
-            print(f"  └─ Failed to fetch issues from REST API ({response.status_code}): {response.text}")
-            return []
+        response = client.request("GET", url, params=params.copy())
 
         raw_issues = response.json()
+        candidates = []
         for issue in raw_issues:
             if "pull_request" in issue:
+                continue
+            if "comments" in issue and issue["comments"] < MIN_RECENT_COMMENTS:
                 continue
 
             label_names = [
@@ -334,27 +318,30 @@ def fetch_external_repo_issues(repo_full_name):
                 )
                 continue
 
-            gql_details = fetch_issue_graphql_details(issue["node_id"])
-            if not gql_details:
-                continue
+            candidates.append((issue, label_names))
 
-            comments = gql_details.get("comments", {}).get("nodes", [])
+        for start in range(0, len(candidates), ISSUE_BATCH_SIZE):
+            batch = candidates[start:start + ISSUE_BATCH_SIZE]
+            details = fetch_issue_graphql_details([issue["node_id"] for issue, _ in batch])
+            for issue, label_names in batch:
+                gql_details = details[issue["node_id"]]
+                comments = gql_details["comments"]["nodes"]
 
-            recent_comments_count = 0
-            for comment in comments:
-                if comment and comment.get("createdAt"):
-                    comment_dt = datetime.fromisoformat(comment["createdAt"].replace("Z", "+00:00"))
-                    if comment_dt >= TWO_YEARS_AGO:
-                        recent_comments_count += 1
+                recent_comments_count = 0
+                for comment in comments:
+                    if comment and comment.get("createdAt"):
+                        comment_dt = datetime.fromisoformat(comment["createdAt"].replace("Z", "+00:00"))
+                        if comment_dt >= TWO_YEARS_AGO:
+                            recent_comments_count += 1
 
-            if recent_comments_count < MIN_RECENT_COMMENTS:
-                print(f"  └─ [EXCLUDED - INACTIVE] Issue #{issue['number']} has {recent_comments_count} comment(s) in past 730 days (Threshold: >= {MIN_RECENT_COMMENTS})")
-                continue
+                if recent_comments_count < MIN_RECENT_COMMENTS:
+                    print(f"  └─ [EXCLUDED - INACTIVE] Issue #{issue['number']} has {recent_comments_count} comment(s) in past 730 days (Threshold: >= {MIN_RECENT_COMMENTS})")
+                    continue
 
-            gql_details["raw_label_names"] = label_names
-            gql_details["recent_comments_count"] = recent_comments_count
-            gql_details["repo_full_name"] = repo_full_name
-            verified_issues.append(gql_details)
+                gql_details["raw_label_names"] = label_names
+                gql_details["recent_comments_count"] = recent_comments_count
+                gql_details["repo_full_name"] = repo_full_name
+                verified_issues.append(gql_details)
 
         if "next" not in response.links:
             break
@@ -391,7 +378,7 @@ def compute_priority_score(issue):
 # -------------------------------------------------------------------
 # 4. Project v2 Mutation Sync (Score + Source Text Column)
 # -------------------------------------------------------------------
-def sync_to_github_project(project_id, score_field_id, repo_field_id, issue_node_id, repo_full_name, score):
+def sync_to_github_project(project_id, score_field_id, repo_field_id, issue_node_id, repo_full_name, score, existing_item=None):
     # 1. Add item to project
     add_item_mutation = """
     mutation($projectId: ID!, $contentId: ID!) {
@@ -403,66 +390,85 @@ def sync_to_github_project(project_id, score_field_id, repo_field_id, issue_node
       }
     }
     """
-    item_data = run_graphql(add_item_mutation, {"projectId": project_id, "contentId": issue_node_id})
-    item_node = item_data["addProjectV2ItemById"]["item"]
-    item_id = item_node["id"]
-    item_type = item_node.get("type", "UNKNOWN")
-
-    # Hydration pause for external reference items (e.g., moby/moby)
-    if item_type != "ISSUE" or "moby" in repo_full_name.lower():
-        time.sleep(0.5)
+    if existing_item is None:
+        item_data = run_graphql(add_item_mutation, {"projectId": project_id, "contentId": issue_node_id})
+        item_node = item_data["addProjectV2ItemById"]["item"]
+        existing_item = {"id": item_node["id"]}
+        if item_node.get("type") != "ISSUE" or "moby" in repo_full_name.lower():
+            time.sleep(0.5)
+    item_id = existing_item["id"]
 
     # 2. Update Priority Score (Number Field)
-    update_score_mutation = """
-    mutation($projectId: ID!, $itemId: ID!, $scoreFieldId: ID!, $scoreValue: Float!) {
-      updateProjectV2ItemFieldValue(
+    update_fields_mutation = """
+    mutation($projectId: ID!, $itemId: ID!, $scoreFieldId: ID!, $scoreValue: Float!,
+             $repoFieldId: ID!, $textValue: String!, $updateScore: Boolean!, $updateSource: Boolean!) {
+      score: updateProjectV2ItemFieldValue(
         input: {
           projectId: $projectId
           itemId: $itemId
           fieldId: $scoreFieldId
           value: { number: $scoreValue }
         }
-      ) {
+      ) @include(if: $updateScore) {
         projectV2Item { id }
       }
-    }
-    """
-    run_graphql(update_score_mutation, {
-        "projectId": project_id,
-        "itemId": item_id,
-        "scoreFieldId": score_field_id,
-        "scoreValue": float(score)
-    })
-
-    # 3. Update Source (Text Field with Explicit Variable Names and Retry Loop)
-    update_repo_mutation = """
-    mutation($projectId: ID!, $itemId: ID!, $repoFieldId: ID!, $textValue: String!) {
-      updateProjectV2ItemFieldValue(
+      source: updateProjectV2ItemFieldValue(
         input: {
           projectId: $projectId
           itemId: $itemId
           fieldId: $repoFieldId
           value: { text: $textValue }
         }
-      ) {
+      ) @include(if: $updateSource) {
         projectV2Item { id }
       }
     }
     """
-    
-    for attempt in range(1, 3):
-        try:
-            run_graphql(update_repo_mutation, {
-                "projectId": project_id,
-                "itemId": item_id,
-                "repoFieldId": repo_field_id,
-                "textValue": str(repo_full_name)
-            })
-            break
-        except Exception as e:
-            if attempt == 2:
-                print(f"  └─ [WARNING] Could not update Source field for {repo_full_name} Item #{item_id}: {e}")
-            time.sleep(1.0)
+    update_score = (existing_item.get("score") or {}).get("number") != float(score)
+    update_source = (existing_item.get("source") or {}).get("text") != repo_full_name
+    if update_score or update_source:
+        run_graphql(update_fields_mutation, {
+            "projectId": project_id, "itemId": item_id,
+            "scoreFieldId": score_field_id, "scoreValue": float(score),
+            "repoFieldId": repo_field_id, "textValue": repo_full_name,
+            "updateScore": update_score, "updateSource": update_source,
+        })
+
+
+def reconcile_project(project_id, score_field_id, repo_field_id, desired_issues):
+    items = get_project_items(project_id)
+    existing = {
+        item["content"]["id"]: item
+        for item in items if item.get("content") and item["content"].get("id")
+    }
+    desired_ids = {issue["id"] for issue, _ in desired_issues}
+    for issue, score in desired_issues:
+        sync_to_github_project(
+            project_id, score_field_id, repo_field_id,
+            issue["id"], issue["repo_full_name"], score,
+            existing_item=existing.get(issue["id"]),
+        )
+        print(f"  └─ [SYNCED] Issue #{issue['number']} ({issue['repo_full_name']}) -> Priority Score: {score}")
+
+    # Remove stale monitored issues only after every desired item is synced.
+    targets = {repo.lower() for repo in TARGET_REPOS}
+    delete_mutation = """
+    mutation($projectId: ID!, $itemId: ID!) {
+      deleteProjectV2Item(input: {projectId: $projectId, itemId: $itemId}) {
+        deletedItemId
+      }
+    }
+    """
+    for item in items:
+        content = item.get("content") or {}
+        repo_name = (content.get("repository") or {}).get("nameWithOwner", "")
+        source = (item.get("source") or {}).get("text", "")
+        if (
+            repo_name.lower() in targets
+            and source.lower() == repo_name.lower()
+            and content.get("id") not in desired_ids
+        ):
+            run_graphql(delete_mutation, {"projectId": project_id, "itemId": item["id"]})
 
 # -------------------------------------------------------------------
 # 5. Durable Weekly Digest
@@ -571,11 +577,10 @@ def find_existing_digest_issue(repo_full_name, run_id):
     if DIGEST_LABELS:
         params["labels"] = DIGEST_LABELS[0]
 
-    response = requests.get(
+    response = client.request(
+        "GET",
         f"{GH_REST_URL}/repos/{owner}/{repo}/issues",
-        headers=headers,
         params=params,
-        timeout=30
     )
     response.raise_for_status()
 
@@ -611,15 +616,15 @@ def publish_weekly_digest(top_issues_by_repo):
         )
         return existing_issue
 
-    response = requests.post(
+    response = client.request(
+        "POST",
         f"{GH_REST_URL}/repos/{owner}/{repo}/issues",
-        headers=headers,
+        mutation=True,
         json={
             "title": title,
             "body": build_digest_body(top_issues_by_repo),
             "labels": DIGEST_LABELS
         },
-        timeout=30
     )
     response.raise_for_status()
 
@@ -631,6 +636,8 @@ def publish_weekly_digest(top_issues_by_repo):
 # Execution Entry Point
 # -------------------------------------------------------------------
 def main():
+    if not TARGET_REPOS:
+        raise ValueError("TARGET_REPOS must contain at least one repository.")
     print(f"Connecting to GitHub Projects (v2) for organization '{ORGANIZATION_NAME}'...")
     print(f"Microsoft/Azure issue lookback starts: {ISSUE_LOOKBACK_TIMESTAMP[:10]}")
     print(f"Other repository issue lookback starts: {SINCE_TWO_YEARS_TIMESTAMP[:10]}")
@@ -638,10 +645,8 @@ def main():
     top_issues_by_repo = {}
     project_id, score_field_id, repo_field_id = get_project_and_field_ids()
 
-    # Step A: Clear board
-    clear_project_board(project_id)
-
-    # Step B: Populate fresh issues
+    # Collect all repositories before changing any Project items.
+    desired_issues = []
     for target in TARGET_REPOS:
         print(f"Processing External Repository: {target}")
         issues = fetch_external_repo_issues(target)
@@ -661,11 +666,9 @@ def main():
         )
         top_issues_by_repo[target] = scored_issues[:3]
 
-        for issue, score in scored_issues[:MAX_PROJECT_ISSUES_PER_REPO]:
-            repo_name = issue["repo_full_name"]
-            sync_to_github_project(project_id, score_field_id, repo_field_id, issue["id"], repo_name, score)
-            print(f"  └─ [ADDED] Issue #{issue['number']} ({repo_name}) -> Priority Score: {score}")
+        desired_issues.extend(scored_issues[:MAX_PROJECT_ISSUES_PER_REPO])
 
+    reconcile_project(project_id, score_field_id, repo_field_id, desired_issues)
     publish_digest = (
         os.getenv("PUBLISH_WEEKLY_DIGEST", "").strip().lower() == "true"
     )
