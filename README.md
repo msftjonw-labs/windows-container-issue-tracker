@@ -11,21 +11,27 @@ Project v2 board but do not publish a digest issue.
 The workflow runs every Monday at 17:00 UTC. A separate email job depends on
 the issue-scoring job and sends its status and a link to the workflow run only
 after that job succeeds. Failed, cancelled, or skipped scoring jobs and manual
-runs do not send email. Delivery requires these repository Actions
-secrets under **Settings → Secrets and variables → Actions**:
+runs do not send email. Configure the following under
+**Settings → Secrets and variables → Actions**.
+
+In the **Secrets** tab, create:
 
 | Secret | Value |
 | --- | --- |
+| `SMTP_PASSWORD` | Your SMTP credential (for Gmail, an app password, not your normal password). |
+
+In the **Variables** tab, create:
+
+| Variable | Value |
+| --- | --- |
 | `SMTP_HOST` | Your SMTP provider's hostname (for Gmail, `smtp.gmail.com`). |
 | `SMTP_USERNAME` | Your SMTP account username. |
-| `SMTP_PASSWORD` | Your SMTP credential (for Gmail, an app password, not your normal password). |
 | `SMTP_FROM` | A sender address authorized by your SMTP provider. |
+| `WEEKLY_EMAIL_RECIPIENTS` | One destination email address or a comma-separated list of addresses. |
 
-In the **Variables** tab on the same page, create the repository Actions variable
-`WEEKLY_EMAIL_RECIPIENTS` with one destination email address or a comma-separated
-list of addresses. If you configured notifications previously, copy the
-recipient secret's value into this variable; recipient secrets are no longer
-used. Keep SMTP credentials in secrets.
+If you configured notifications previously, copy the host, username, sender,
+and recipient settings from secrets into the corresponding variables; those
+secrets are no longer used. Only `SMTP_PASSWORD` remains a secret for email delivery.
 
 The sender uses authenticated SMTP over TLS on port 465 with certificate
 verification. Gmail app passwords require two-step verification and must be

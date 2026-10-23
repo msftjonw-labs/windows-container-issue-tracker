@@ -88,10 +88,10 @@ jobs:
 
       - name: Email successful scheduled run status
         env:
-          SMTP_HOST: ${{ secrets.SMTP_HOST }}
-          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_HOST: ${{ vars.SMTP_HOST }}
+          SMTP_USERNAME: ${{ vars.SMTP_USERNAME }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-          SMTP_FROM: ${{ secrets.SMTP_FROM }}
+          SMTP_FROM: ${{ vars.SMTP_FROM }}
           WEEKLY_EMAIL_RECIPIENTS: ${{ vars.WEEKLY_EMAIL_RECIPIENTS }}
           RUN_STATUS: ${{ needs.score-issues.result }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
