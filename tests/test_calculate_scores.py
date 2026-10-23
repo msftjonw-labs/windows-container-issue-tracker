@@ -1,4 +1,5 @@
 import unittest
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 import tempfile
@@ -261,8 +262,9 @@ class ProjectReconciliationTests(unittest.TestCase):
     @patch("scripts.calculate_scores.reconcile_project")
     @patch("scripts.calculate_scores.publish_weekly_digest")
     @patch("scripts.calculate_scores.write_project_snapshot")
+    @patch("scripts.calculate_scores.write_scored_issues")
     def test_collection_failure_never_changes_board_or_publishes_digest(
-        self, snapshot, digest, reconcile, fetch, discovery
+        self, export, snapshot, digest, reconcile, fetch, discovery
     ):
         fetch.side_effect = [
             [{"id": "one", "repo_full_name": "example/one"}],
@@ -273,6 +275,7 @@ class ProjectReconciliationTests(unittest.TestCase):
         reconcile.assert_not_called()
         digest.assert_not_called()
         snapshot.assert_not_called()
+        export.assert_not_called()
 
     @patch.object(calculate_scores, "TARGET_REPOS", ["example/one", "example/two"])
     @patch("scripts.calculate_scores.get_project_and_field_ids", return_value=("project", "score", "source"))
@@ -280,8 +283,9 @@ class ProjectReconciliationTests(unittest.TestCase):
     @patch("scripts.calculate_scores.reconcile_project")
     @patch("scripts.calculate_scores.publish_weekly_digest")
     @patch("scripts.calculate_scores.write_project_snapshot")
+    @patch("scripts.calculate_scores.write_scored_issues")
     def test_collects_before_sync_then_publishes_digest(
-        self, snapshot, digest, reconcile, fetch, discovery
+        self, export, snapshot, digest, reconcile, fetch, discovery
     ):
         events = []
         issues = [{"id": str(n), "repo_full_name": "example/one", "raw_label_names": []} for n in range(12)]
@@ -289,14 +293,35 @@ class ProjectReconciliationTests(unittest.TestCase):
         reconcile.side_effect = lambda *args: events.append("sync")
         digest.side_effect = lambda *args: events.append("digest")
         snapshot.side_effect = lambda *args: events.append("snapshot")
+        export.side_effect = lambda *args: events.append("export")
         with patch.dict("os.environ", {"PUBLISH_WEEKLY_DIGEST": "true"}):
             calculate_scores.main()
         self.assertEqual(
             events,
-            ["example/one", "example/two", "sync", "digest", "snapshot"],
+            ["example/one", "example/two", "sync", "digest", "snapshot", "export"],
         )
         self.assertEqual(len(reconcile.call_args.args[3]), 20)
         self.assertTrue(all(len(top) == 3 for top in digest.call_args.args[0].values()))
+        self.assertEqual(len(export.call_args.args[0]), 24)
+
+    def test_exports_scored_issue_identity_and_score_without_project_cap(self):
+        issues = [
+            ({"id": str(n), "number": n, "title": f"Nano Server {n}",
+              "url": f"https://github.com/example/repo/issues/{n}",
+              "repo_full_name": "example/repo"}, float(n))
+            for n in range(12)
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "scoring-output" / "scored-issues.json"
+            self.assertEqual(calculate_scores.write_scored_issues(issues, path), path)
+            records = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(len(records), 12)
+        self.assertEqual(records[-1], {**issues[-1][0], "score": 11.0})
+
+    def test_exports_empty_scored_list(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = calculate_scores.write_scored_issues([], Path(directory) / "issues.json")
+            self.assertEqual(json.loads(path.read_text()), [])
 
     def test_scoring_weights_and_recent_comment_sample_unchanged(self):
         issue = {

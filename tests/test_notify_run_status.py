@@ -14,6 +14,9 @@ class NotifyRunStatusTests(unittest.TestCase):
         (snapshot_directory / "windows-container-issue-snapshot-2026-10-23.pdf").write_bytes(
             b"%PDF test attachment"
         )
+        (snapshot_directory / "windows-container-hypothesis-validation-2026-10-23.pdf").write_bytes(
+            b"%PDF hypothesis attachment"
+        )
         self.env = {
             "SMTP_HOST": "smtp.example.com",
             "SMTP_USERNAME": "sender",
@@ -25,6 +28,8 @@ class NotifyRunStatusTests(unittest.TestCase):
             "GITHUB_REPOSITORY": "example/repo",
             "PROJECT_URL": "https://github.com/orgs/example/projects/1",
             "SNAPSHOT_DIRECTORY": str(snapshot_directory),
+            "REPORT_DIRECTORY": str(snapshot_directory),
+            "REPORT_STATUS": "success",
         }
 
     @patch("scripts.notify_run_status.smtplib.SMTP_SSL")
@@ -57,6 +62,14 @@ class NotifyRunStatusTests(unittest.TestCase):
                 )
                 self.assertEqual(attachment.get_content_type(), "application/pdf")
                 self.assertEqual(attachment.get_payload(decode=True), b"%PDF test attachment")
+                attachments = list(message.iter_attachments())
+                self.assertEqual(len(attachments), 2)
+                self.assertEqual(
+                    attachments[1].get_filename(),
+                    "windows-container-hypothesis-validation-2026-10-23.pdf",
+                )
+                self.assertEqual(attachments[1].get_payload(decode=True), b"%PDF hypothesis attachment")
+                self.assertIn("Hypothesis report status: success", body)
 
     @patch("scripts.notify_run_status.smtplib.SMTP_SSL")
     def test_supports_multiple_weekly_recipients(self, smtp_ssl):
@@ -96,12 +109,31 @@ class NotifyRunStatusTests(unittest.TestCase):
                 notify_run_status.main()
 
     @patch("scripts.notify_run_status.smtplib.SMTP_SSL")
-    def test_missing_snapshot_fails_before_connecting(self, smtp_ssl):
+    def test_failed_scoring_still_emails_without_pdfs(self, smtp_ssl):
         self.env["SNAPSHOT_DIRECTORY"] = self.snapshot_tempdir.name + "/empty"
+        self.env["REPORT_DIRECTORY"] = self.snapshot_tempdir.name + "/empty"
+        self.env["RUN_STATUS"] = "failure"
+        self.env["REPORT_STATUS"] = "skipped"
         with patch.dict("os.environ", self.env, clear=True):
-            with self.assertRaisesRegex(FileNotFoundError, "No issue snapshot PDF"):
-                notify_run_status.main()
-        smtp_ssl.assert_not_called()
+            notify_run_status.main()
+        smtp = smtp_ssl.return_value.__enter__.return_value
+        message = smtp.send_message.call_args.args[0]
+        self.assertEqual(list(message.iter_attachments()), [])
+        body = message.get_content()
+        self.assertIn("Issue scoring run status: failure", body)
+        self.assertIn("Hypothesis report status: skipped", body)
+        self.assertIn("Attachment unavailable: issue snapshot", body)
+        self.assertIn("Attachment unavailable: hypothesis report", body)
+
+    @patch("scripts.notify_run_status.smtplib.SMTP_SSL")
+    def test_report_failure_preserves_snapshot_email(self, smtp_ssl):
+        self.env["REPORT_STATUS"] = "failure"
+        self.env["REPORT_DIRECTORY"] = self.snapshot_tempdir.name + "/empty"
+        with patch.dict("os.environ", self.env, clear=True):
+            notify_run_status.main()
+        message = smtp_ssl.return_value.__enter__.return_value.send_message.call_args.args[0]
+        self.assertEqual(len(list(message.iter_attachments())), 1)
+        self.assertIn("Hypothesis report status: failure", message.get_body().get_content())
 
 
 if __name__ == "__main__":

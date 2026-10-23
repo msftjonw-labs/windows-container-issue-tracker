@@ -6,6 +6,61 @@ GitHub Actions workflow also publishes a weekly digest issue in this repository.
 Runs can be started manually from the Actions tab; manual runs update the
 Project v2 board but do not publish a digest issue.
 
+## Automated hypothesis evidence report
+
+Each run now performs three actions in order:
+
+1. Score all qualifying issues, refresh the Project, and generate the existing
+   issue snapshot PDF. Export **all scored issues**, not just the top ten Project
+   items or top three digest entries, to `scoring-output/scored-issues.json`.
+2. Re-fetch those issues and review their current descriptions, latest comments,
+   and latest updated linked pull request. Generate
+   `report-history/windows-container-hypothesis-validation-yyyy-mm-dd.pdf`
+   using the UTC generation date.
+3. Send email with the separate scoring and report-generation statuses, the
+   workflow link, the Project link, and both PDFs when available.
+
+The report first states these provisional hypotheses:
+
+- **Hypothesis 1:** The community does not want to use Windows containers as the
+  development platform because it is not free and lacks open source community
+  popularity.
+- **Hypothesis 2:** The Windows containers community has not grown in the past
+  few years because gaps in the Nano Server container image limit what
+  developers can test on top of it.
+
+Neither statement is assumed true. The report is transparent, deterministic
+evidence **triage**, not an AI research verdict: it flags candidate supporting
+and contradictory statements with source references for human review and marks
+insufficient or unrelated evidence as inconclusive. Keyword matches cannot
+establish licensing facts, motives, causality, community growth, or popularity.
+The sampled open, active issues do not represent all developers or non-adopters.
+Validate findings through interviews, licensing research, and longitudinal data
+before accepting or rejecting either hypothesis.
+
+Each scored issue appears even when no relevant evidence or linked PR exists.
+The report reads the latest 100 comments, not the complete discussion history.
+PR discovery uses issue timeline references/connections and selects the latest
+by PR update time; unlinked work and plain-text references absent from those
+events are outside this discovery scope. Fetch failures fail action 2 rather than
+being interpreted as no evidence. No external AI service or new credential is
+required; the existing GitHub App needs read access to issues and pull requests
+in the monitored repositories.
+
+Both PDFs are uploaded as workflow artifacts (`issue-snapshot-<run-id>-<attempt>`
+and `hypothesis-report-<run-id>-<attempt>`). Attempt-specific names also prevent
+reruns from attaching a previous attempt's PDFs. Generation occurs in root-level history folders
+on the runner; these files are **not automatically committed** to git. Artifact
+retention follows repository settings. Historical PDFs are excluded from current
+run inputs, and email downloads only that run's artifacts into fresh temporary
+directories, so a failed run cannot attach an older checked-in report.
+
+For local execution, run `python scripts/calculate_scores.py` with the existing
+scoring configuration, then `python scripts/generate_hypothesis_report.py` with
+`GITHUB_APP_TOKEN` (or `GH_PAT`). Both scripts use `SCORED_ISSUES_PATH` when set;
+otherwise the export path above is used. The report directory is created when
+needed, including an explicitly inconclusive report for an empty scored list.
+
 ## Hypothesis-led ecosystem strategy
 
 Over the next 3–5 years, the provisional goal is to help teams adopt and sustain
@@ -157,14 +212,17 @@ Run the mocked regression suite without live credentials:
 
 ## Weekly run email notifications
 
-The workflow runs every Monday at 17:00 UTC. A separate email job depends on
-the issue-scoring job and sends its status and a link to the workflow run only
-after that job succeeds. The email also links to the ProjectV2 board and
-attaches the generated PDF snapshot. Scheduled runs send email automatically. To request
-email for a manual run, open **Actions → Calculate Issue Priority Scores →
-Run workflow** and enable **Send an email after issue scoring succeeds**
-(`send_email`). This option defaults to off and does not publish a weekly
-digest. Failed, cancelled, or skipped scoring jobs never send email.
+The workflow runs every Monday at 17:00 UTC. A separate email job runs after
+scoring and hypothesis reporting, including when either action fails. It sends
+both action statuses and attaches the PDFs available from that run. Missing
+artifacts are explicitly noted in the email rather than suppressing a failure
+notification. Scheduled runs send email automatically. For manual runs, open
+**Actions → Calculate Issue Priority Scores → Run workflow**; **Send scoring and
+hypothesis report status with available PDFs** (`send_email`) defaults to on.
+Uncheck it to opt out of email. Manual runs do not publish a weekly
+digest. A scoring failure skips report generation; a reporting failure does not
+undo the Project refresh or prevent attaching the scoring snapshot. Cancellation
+notifications are best effort, subject to GitHub runner availability.
 Configure the following under
 **Settings → Secrets and variables → Actions**.
 
@@ -193,6 +251,6 @@ permitted by your account policy. Never commit credentials or recipient
 addresses to the repository.
 
 Missing configuration or delivery failures fail the separate email job without
-changing the successful scoring job's result. Check the Actions logs if an
+changing the scoring or report-generation results. Check the Actions logs if an
 expected email does not arrive. Email cannot be guaranteed if the runner stops,
 the job times out, or the email job cannot check out the script.

@@ -1,4 +1,5 @@
 import html
+import json
 import os
 import sys
 import time
@@ -769,6 +770,7 @@ def main():
 
     # Collect all repositories before changing any Project items.
     desired_issues = []
+    all_scored_issues = []
     for target in TARGET_REPOS:
         print(f"Processing External Repository: {target}")
         issues = fetch_external_repo_issues(target)
@@ -786,6 +788,7 @@ def main():
             key=lambda scored_issue: scored_issue[1],
             reverse=True
         )
+        all_scored_issues.extend(scored_issues)
         top_issues_by_repo[target] = scored_issues[:3]
 
         desired_issues.extend(scored_issues[:MAX_PROJECT_ISSUES_PER_REPO])
@@ -798,6 +801,24 @@ def main():
     if publish_digest:
         digest_issue = publish_weekly_digest(top_issues_by_repo)
     write_project_snapshot(project_id)
+    write_scored_issues(all_scored_issues)
+
+
+def write_scored_issues(scored_issues, output_path=None):
+    output_path = Path(output_path or os.getenv(
+        "SCORED_ISSUES_PATH",
+        str(Path(__file__).resolve().parent.parent / "scoring-output" / "scored-issues.json"),
+    ))
+    if not output_path.is_absolute():
+        output_path = Path(__file__).resolve().parent.parent / output_path
+    records = [
+        {**{key: issue[key] for key in ("id", "number", "title", "url", "repo_full_name")},
+         "score": score}
+        for issue, score in scored_issues
+    ]
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(records, ensure_ascii=False, indent=2), encoding="utf-8")
+    return output_path
 
 if __name__ == "__main__":
     main()
