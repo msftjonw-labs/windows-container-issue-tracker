@@ -1,4 +1,6 @@
 import unittest
+import tempfile
+from pathlib import Path
 from unittest.mock import patch
 
 from scripts import notify_run_status
@@ -6,6 +8,12 @@ from scripts import notify_run_status
 
 class NotifyRunStatusTests(unittest.TestCase):
     def setUp(self):
+        self.snapshot_tempdir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.snapshot_tempdir.cleanup)
+        snapshot_directory = Path(self.snapshot_tempdir.name)
+        (snapshot_directory / "windows-container-issue-snapshot-2026-10-23.pdf").write_bytes(
+            b"%PDF test attachment"
+        )
         self.env = {
             "SMTP_HOST": "smtp.example.com",
             "SMTP_USERNAME": "sender",
@@ -15,6 +23,8 @@ class NotifyRunStatusTests(unittest.TestCase):
             "RUN_STATUS": "success",
             "RUN_URL": "https://github.com/example/repo/actions/runs/123",
             "GITHUB_REPOSITORY": "example/repo",
+            "PROJECT_URL": "https://github.com/orgs/example/projects/1",
+            "SNAPSHOT_DIRECTORY": str(snapshot_directory),
         }
 
     @patch("scripts.notify_run_status.smtplib.SMTP_SSL")
@@ -36,8 +46,17 @@ class NotifyRunStatusTests(unittest.TestCase):
                 self.assertEqual(message["From"], "sender@example.com")
                 self.assertIn(status, message["Subject"])
                 self.assertIn("example/repo", message["Subject"])
-                self.assertIn(status, message.get_content())
-                self.assertIn(self.env["RUN_URL"], message.get_content())
+                body = message.get_body(preferencelist=("plain",)).get_content()
+                self.assertIn(status, body)
+                self.assertIn(self.env["RUN_URL"], body)
+                self.assertIn(self.env["PROJECT_URL"], body)
+                attachment = list(message.iter_attachments())[0]
+                self.assertEqual(
+                    attachment.get_filename(),
+                    "windows-container-issue-snapshot-2026-10-23.pdf",
+                )
+                self.assertEqual(attachment.get_content_type(), "application/pdf")
+                self.assertEqual(attachment.get_payload(decode=True), b"%PDF test attachment")
 
     @patch("scripts.notify_run_status.smtplib.SMTP_SSL")
     def test_supports_multiple_weekly_recipients(self, smtp_ssl):
@@ -75,6 +94,14 @@ class NotifyRunStatusTests(unittest.TestCase):
         with patch.dict("os.environ", self.env, clear=True):
             with self.assertRaisesRegex(RuntimeError, "Delivery failed"):
                 notify_run_status.main()
+
+    @patch("scripts.notify_run_status.smtplib.SMTP_SSL")
+    def test_missing_snapshot_fails_before_connecting(self, smtp_ssl):
+        self.env["SNAPSHOT_DIRECTORY"] = self.snapshot_tempdir.name + "/empty"
+        with patch.dict("os.environ", self.env, clear=True):
+            with self.assertRaisesRegex(FileNotFoundError, "No issue snapshot PDF"):
+                notify_run_status.main()
+        smtp_ssl.assert_not_called()
 
 
 if __name__ == "__main__":

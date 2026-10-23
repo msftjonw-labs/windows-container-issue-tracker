@@ -3,6 +3,9 @@ import os
 import sys
 import time
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
+import textwrap
+import unicodedata
 if __package__:
     from .github_client import GitHubClient
 else:
@@ -84,6 +87,7 @@ TWO_YEARS_AGO = datetime.now(timezone.utc) - timedelta(days=STANDARD_LOOKBACK_DA
 SINCE_TWO_YEARS_TIMESTAMP = TWO_YEARS_AGO.isoformat()
 
 ISSUE_BATCH_SIZE = 10
+SNAPSHOT_DIRECTORY = Path(__file__).resolve().parent.parent / "snapshot-history"
 
 def run_graphql(query, variables=None):
     return client.request(
@@ -155,6 +159,9 @@ def get_project_items(project_id):
               content {
                 ... on Issue {
                   id
+                  number
+                  title
+                  url
                   repository { nameWithOwner }
                 }
               }
@@ -470,6 +477,121 @@ def reconcile_project(project_id, score_field_id, repo_field_id, desired_issues)
         ):
             run_graphql(delete_mutation, {"projectId": project_id, "itemId": item["id"]})
 
+
+def _pdf_text(value):
+    normalized = unicodedata.normalize("NFKD", str(value))
+    return normalized.encode("ascii", "replace").decode("ascii")
+
+
+def _escape_pdf_text(value):
+    return _pdf_text(value).replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+
+def _write_pdf(lines, output_path):
+    wrapped_lines = []
+    for line in lines:
+        wrapped_lines.extend(textwrap.wrap(_pdf_text(line), width=94) or [""])
+
+    lines_per_page = 48
+    page_lines = [
+        wrapped_lines[index:index + lines_per_page]
+        for index in range(0, len(wrapped_lines), lines_per_page)
+    ] or [[]]
+
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"",  # Filled with the page tree after page objects are created.
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]
+    page_refs = []
+    for page in page_lines:
+        page_number = len(objects) + 1
+        content_number = page_number + 1
+        page_refs.append(f"{page_number} 0 R")
+        commands = ["BT", "/F1 9 Tf", "50 790 Td", "12 TL"]
+        for line in page:
+            commands.append(f"({_escape_pdf_text(line)}) Tj")
+            commands.append("T*")
+        commands.append("ET")
+        stream = "\n".join(commands).encode("ascii")
+        objects.append(
+            (
+                b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 842] "
+                b"/Resources << /Font << /F1 3 0 R >> >> /Contents "
+                + f"{content_number} 0 R >>".encode("ascii")
+            )
+        )
+        objects.append(
+            b"<< /Length "
+            + str(len(stream)).encode("ascii")
+            + b" >>\nstream\n"
+            + stream
+            + b"\nendstream"
+        )
+    objects[1] = (
+        b"<< /Type /Pages /Kids ["
+        + " ".join(page_refs).encode("ascii")
+        + b"] /Count "
+        + str(len(page_refs)).encode("ascii")
+        + b" >>"
+    )
+
+    pdf = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
+    offsets = [0]
+    for object_number, content in enumerate(objects, start=1):
+        offsets.append(len(pdf))
+        pdf.extend(f"{object_number} 0 obj\n".encode("ascii"))
+        pdf.extend(content)
+        pdf.extend(b"\nendobj\n")
+
+    xref_offset = len(pdf)
+    pdf.extend(f"xref\n0 {len(objects) + 1}\n".encode("ascii"))
+    pdf.extend(b"0000000000 65535 f \n")
+    for offset in offsets[1:]:
+        pdf.extend(f"{offset:010d} 00000 n \n".encode("ascii"))
+    pdf.extend(
+        (
+            f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\n"
+            f"startxref\n{xref_offset}\n%%EOF\n"
+        ).encode("ascii")
+    )
+    output_path.write_bytes(pdf)
+
+
+def write_project_snapshot(project_id, items=None, output_directory=None, generated_at=None):
+    if items is None:
+        items = get_project_items(project_id)
+    generated_at = generated_at or datetime.now(timezone.utc)
+    project_url = f"https://github.com/orgs/{ORGANIZATION_NAME}/projects/{PROJECT_NUMBER}"
+    lines = [
+        "Windows Container Issue Snapshot",
+        f"Generated: {generated_at:%Y-%m-%d %H:%M:%S UTC}",
+        f"ProjectV2: {project_url}",
+        f"Items: {len(items)}",
+        "",
+    ]
+    for item in items:
+        content = item.get("content") or {}
+        repository = (content.get("repository") or {}).get("nameWithOwner", "Unknown repository")
+        number = content.get("number")
+        title = content.get("title") or "Untitled issue"
+        issue_ref = f"#{number}" if number is not None else "Draft item"
+        score = (item.get("score") or {}).get("number")
+        score_text = f" | Priority score: {score}" if score is not None else ""
+        lines.append(f"{repository} {issue_ref}: {title}{score_text}")
+        if content.get("url"):
+            lines.append(f"  {content['url']}")
+
+    output_directory = Path(output_directory or SNAPSHOT_DIRECTORY)
+    output_directory.mkdir(parents=True, exist_ok=True)
+    output_path = output_directory / (
+        f"windows-container-issue-snapshot-{generated_at:%Y-%m-%d}.pdf"
+    )
+    _write_pdf(lines, output_path)
+    print(f"Project snapshot generated: {output_path}")
+    return output_path
+
+
 # -------------------------------------------------------------------
 # 5. Durable Weekly Digest
 # -------------------------------------------------------------------
@@ -675,6 +797,7 @@ def main():
     digest_issue = None
     if publish_digest:
         digest_issue = publish_weekly_digest(top_issues_by_repo)
+    write_project_snapshot(project_id)
 
 if __name__ == "__main__":
     main()

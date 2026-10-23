@@ -24,6 +24,11 @@ retained, although updates already applied are not rolled back. Cleanup itself
 can also stop partway through, leaving extra stale items rather than removing
 the newly selected issues.
 
+After a successful refresh, the workflow writes the full ProjectV2 board to
+`snapshot-history/windows-container-issue-snapshot-YYYY-MM-DD.pdf` and uploads
+the PDF as a run artifact. Scheduled emails and requested manual-run emails
+include the ProjectV2 link and attach that run's snapshot.
+
 An issue is eligible for stale-item cleanup only when it belongs to a monitored
 repository and its **Source** field matches that repository's full name. This
 field acts as the management marker. Draft items, unrelated repositories, and
@@ -51,7 +56,8 @@ Run the mocked regression suite without live credentials:
 
 The workflow runs every Monday at 17:00 UTC. A separate email job depends on
 the issue-scoring job and sends its status and a link to the workflow run only
-after that job succeeds. Scheduled runs send email automatically. To request
+after that job succeeds. The email also links to the ProjectV2 board and
+attaches the generated PDF snapshot. Scheduled runs send email automatically. To request
 email for a manual run, open **Actions → Calculate Issue Priority Scores →
 Run workflow** and enable **Send an email after issue scoring succeeds**
 (`send_email`). This option defaults to off and does not publish a weekly
