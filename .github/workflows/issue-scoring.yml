@@ -92,7 +92,7 @@ jobs:
           SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           SMTP_FROM: ${{ secrets.SMTP_FROM }}
-          WEEKLY_EMAIL_RECIPIENTS: ${{ secrets.WEEKLY_EMAIL_RECIPIENTS }}
+          WEEKLY_EMAIL_RECIPIENTS: ${{ vars.WEEKLY_EMAIL_RECIPIENTS }}
           RUN_STATUS: ${{ needs.score-issues.result }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: python3 scripts/notify_run_status.py

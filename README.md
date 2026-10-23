@@ -20,10 +20,12 @@ secrets under **Settings → Secrets and variables → Actions**:
 | `SMTP_USERNAME` | Your SMTP account username. |
 | `SMTP_PASSWORD` | Your SMTP credential (for Gmail, an app password, not your normal password). |
 | `SMTP_FROM` | A sender address authorized by your SMTP provider. |
-| `WEEKLY_EMAIL_RECIPIENTS` | One destination email address or a comma-separated list of addresses. |
 
-If you configured notifications previously, copy the former recipient secret's
-value into `WEEKLY_EMAIL_RECIPIENTS`; the old secret is no longer used.
+In the **Variables** tab on the same page, create the repository Actions variable
+`WEEKLY_EMAIL_RECIPIENTS` with one destination email address or a comma-separated
+list of addresses. If you configured notifications previously, copy the
+recipient secret's value into this variable; recipient secrets are no longer
+used. Keep SMTP credentials in secrets.
 
 The sender uses authenticated SMTP over TLS on port 465 with certificate
 verification. Gmail app passwords require two-step verification and must be
