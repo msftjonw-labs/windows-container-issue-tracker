@@ -73,14 +73,26 @@ jobs:
             Azure/AKS
         run: python scripts/calculate_scores.py
 
-      - name: Email scheduled run status
-        if: ${{ always() && github.event_name == 'schedule' }}
+  email-weekly-status:
+    needs: score-issues
+    if: ${{ github.event_name == 'schedule' && needs.score-issues.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Email successful scheduled run status
         env:
           SMTP_HOST: ${{ secrets.SMTP_HOST }}
           SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           SMTP_FROM: ${{ secrets.SMTP_FROM }}
-          NOTIFICATION_EMAIL_TO: ${{ secrets.NOTIFICATION_EMAIL_TO }}
-          RUN_STATUS: ${{ job.status }}
+          WEEKLY_EMAIL_RECIPIENTS: ${{ secrets.WEEKLY_EMAIL_RECIPIENTS }}
+          RUN_STATUS: ${{ needs.score-issues.result }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: python3 scripts/notify_run_status.py

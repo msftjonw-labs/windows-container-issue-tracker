@@ -11,7 +11,7 @@ class NotifyRunStatusTests(unittest.TestCase):
             "SMTP_USERNAME": "sender",
             "SMTP_PASSWORD": "test-only-placeholder",
             "SMTP_FROM": "sender@example.com",
-            "NOTIFICATION_EMAIL_TO": "recipient@example.com",
+            "WEEKLY_EMAIL_RECIPIENTS": "recipient@example.com",
             "RUN_STATUS": "success",
             "RUN_URL": "https://github.com/example/repo/actions/runs/123",
             "GITHUB_REPOSITORY": "example/repo",
@@ -38,6 +38,20 @@ class NotifyRunStatusTests(unittest.TestCase):
                 self.assertIn("example/repo", message["Subject"])
                 self.assertIn(status, message.get_content())
                 self.assertIn(self.env["RUN_URL"], message.get_content())
+
+    @patch("scripts.notify_run_status.smtplib.SMTP_SSL")
+    def test_supports_multiple_weekly_recipients(self, smtp_ssl):
+        recipients = "first@example.com, second@example.com"
+        self.env["WEEKLY_EMAIL_RECIPIENTS"] = recipients
+        with patch.dict("os.environ", self.env, clear=True):
+            notify_run_status.main()
+
+        smtp = smtp_ssl.return_value.__enter__.return_value
+        message = smtp.send_message.call_args.args[0]
+        self.assertEqual(
+            [address.addr_spec for address in message["To"].addresses],
+            ["first@example.com", "second@example.com"],
+        )
 
     @patch("scripts.notify_run_status.smtplib.SMTP_SSL")
     def test_missing_or_empty_configuration_fails_before_connecting(self, smtp_ssl):

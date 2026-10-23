@@ -7,7 +7,7 @@ from email.message import EmailMessage
 def main():
     required = (
         "SMTP_HOST", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_FROM",
-        "NOTIFICATION_EMAIL_TO", "RUN_STATUS", "RUN_URL", "GITHUB_REPOSITORY",
+        "WEEKLY_EMAIL_RECIPIENTS", "RUN_STATUS", "RUN_URL", "GITHUB_REPOSITORY",
     )
     missing = [name for name in required if not os.environ.get(name)]
     if missing:
@@ -15,7 +15,7 @@ def main():
 
     message = EmailMessage()
     message["From"] = os.environ["SMTP_FROM"]
-    message["To"] = os.environ["NOTIFICATION_EMAIL_TO"]
+    message["To"] = os.environ["WEEKLY_EMAIL_RECIPIENTS"]
     message["Subject"] = (
         f'Weekly run {os.environ["RUN_STATUS"]}: {os.environ["GITHUB_REPOSITORY"]}'
     )
