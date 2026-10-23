@@ -1,0 +1,56 @@
+name: Strategy hypothesis
+description: Define a falsifiable ecosystem hypothesis before selecting contributions.
+title: "[Hypothesis] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Hypotheses are provisional, not commitments. Seek evidence that could overturn them.
+        Use public references and anonymized summaries only; do not include confidential research.
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Strategic outcome and target segment
+      description: Which users and workloads should Windows containers serve exceptionally well over the next 3–5 years? What would sustainable upstream support look like?
+    validations:
+      required: true
+  - type: textarea
+    id: hypothesis
+    attributes:
+      label: Hypothesis and expected behavior change
+      description: State the suspected barrier, intervention, and observable change. Identify whether this concerns adoption, retention, ecosystem sustainability, or another explanation.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and disconfirming evidence
+      description: What competing explanations exist? What observations would contradict this hypothesis, rather than merely fail to confirm it?
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Current evidence and gaps
+      description: Link public issues and Community evidence records, including non-adopter and maintainer input. Separate observations from assumptions and identify missing voices.
+    validations:
+      required: true
+  - type: textarea
+    id: measurement
+    attributes:
+      label: Baseline and test criteria
+      description: Define the cohort, baseline (or collection step), outcome metric, measurement source, success and failure thresholds, and observation window. Do not treat PR counts as outcomes.
+    validations:
+      required: true
+  - type: textarea
+    id: ownership
+    attributes:
+      label: Owner, review date, and candidate experiments
+      description: Name the accountable owner and review date. Link contribution experiments when available; do not select only confirming cases.
+    validations:
+      required: true
+  - type: textarea
+    id: review
+    attributes:
+      label: Review log
+      description: At each review, append the date, results, contradictory evidence, confounders, supported/contradicted/inconclusive assessment, continue/revise/stop decision, and next owner and review date. Leave blank until evidence is available.

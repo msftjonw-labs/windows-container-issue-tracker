@@ -1,0 +1,72 @@
+name: Contribution assessment and experiment
+description: Assess an upstream contribution and track outcomes beyond a merged PR.
+title: "[Contribution] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Activity scores inform discovery, not strategy. Quiet blockers are welcome.
+        Foundational health and community discovery do not require a hypothesis.
+        Report security vulnerabilities through established private channels, not this form.
+  - type: dropdown
+    id: workstream
+    attributes:
+      label: Workstream
+      options:
+        - Foundational health
+        - Strategic experiments
+        - Community discovery
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Problem, upstream references, and hypothesis
+      description: Link the original upstream issue or describe an interview-only need. For strategic experiments, link a hypothesis and explain the test; otherwise state why the work merits attention without one.
+    validations:
+      required: true
+  - type: textarea
+    id: assessment
+    attributes:
+      label: Evidence-based assessment
+      description: For each dimension use supported, contradicted, or unknown, with evidence and rationale. Authors and votes do not establish independent organization reach.
+      value: |
+        Strategic relevance (segment/workload or challenge to strategy):
+
+        Impact (blocker, degraded operation, or inconvenience):
+
+        Reach (verified independent organizations, source, uncertainty):
+
+        Learning value (alternatives distinguished and disconfirming result):
+
+        Ecosystem leverage (projects helped, ownership, support burden):
+
+        Feasibility (maintainer agreement, acceptance path, dependencies, capacity):
+    validations:
+      required: true
+  - type: textarea
+    id: decision
+    attributes:
+      label: Decision and accountable owner
+      description: Contribute, investigate, defer, or decline? Record trade-offs, owner, and next review date. Unknowns call for investigation, not invented scores.
+    validations:
+      required: true
+  - type: textarea
+    id: experiment
+    attributes:
+      label: Outcome measurement plan
+      description: Before work starts, define the baseline or its collection step, cohort, intended behavior change, metric, target, source, observation window, and review date. For exploratory work, define the learning outcome. Urgent foundational remediation must not wait for an experiment.
+    validations:
+      required: true
+  - type: textarea
+    id: maintenance
+    attributes:
+      label: Upstream acceptance and sustainable ownership
+      description: Record maintainer discussion, contribution scope, Windows test coverage, release follow-up, and who will maintain the change. State unknowns and the next step to resolve them.
+    validations:
+      required: true
+  - type: textarea
+    id: results
+    attributes:
+      label: Outcome review log
+      description: After delivery, append dated results, source, confounders, negative evidence, supported/contradicted/inconclusive assessment, and continue/revise/stop decision. Link hypothesis updates and next owner/review date. A merged PR alone does not complete the experiment.

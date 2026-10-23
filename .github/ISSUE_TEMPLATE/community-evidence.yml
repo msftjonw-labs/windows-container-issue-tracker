@@ -1,0 +1,50 @@
+name: Community evidence
+description: Capture unmet needs, maintainer feedback, and evidence that challenges the strategy.
+title: "[Evidence] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Include unexpected findings and low-activity blockers, not only popular requests.
+        Share only consent-safe anonymized summaries and public references.
+        Do not include identities, private interview notes, credentials, or vulnerability details.
+  - type: dropdown
+    id: perspective
+    attributes:
+      label: Perspective
+      options:
+        - Current adopter or operator
+        - Evaluating or non-adopter
+        - Abandoned adoption or production use
+        - Upstream maintainer or contributor
+        - Other or mixed perspectives
+    validations:
+      required: true
+  - type: textarea
+    id: observation
+    attributes:
+      label: Observation, workload, and consequence
+      description: What happened, for which segment and workload? Separate direct observation from interpretation. Include the barrier or unexpected need and its practical consequence.
+    validations:
+      required: true
+  - type: textarea
+    id: source
+    attributes:
+      label: Evidence source, date, and limitations
+      description: Provide public links or an anonymized interview summary and collection date. Explain sample limitations, selection bias, and whether independent organization reach is verified or unknown.
+    validations:
+      required: true
+  - type: textarea
+    id: implications
+    attributes:
+      label: Implications and competing explanations
+      description: Link any relevant hypothesis. Does this support it, contradict it, or remain inconclusive? Unlinked findings are welcome. What alternative explanation or missing evidence should be investigated?
+    validations:
+      required: true
+  - type: textarea
+    id: followup
+    attributes:
+      label: Follow-up, owner, and review date
+      description: Identify the next research or maintainer discussion, any linked contribution assessment, an accountable owner, and a review date.
+    validations:
+      required: true
