@@ -384,6 +384,12 @@ class PathRenderingAndErrorsTests(unittest.TestCase):
         mkdir.assert_called_once_with(parents=True, exist_ok=True)
         self.assertEqual(writer.call_args.args[1], path)
         self.assertIn("2026-10-23 22:00:00 UTC", "\n".join(writer.call_args.args[0]))
+        table_rows = writer.call_args.kwargs["table_rows"]
+        self.assertEqual(table_rows[0], ("Section", "Report content"))
+        self.assertTrue(any(row[0] == "Adaptive weekly hypotheses (authoritative latest decisions)"
+                            for row in table_rows))
+        self.assertTrue(any("Current supporting source showcase" in row[0]
+                            for row in table_rows))
 
     def test_empty_export_explicit_zero_sample_not_validation(self):
         with patch.object(report, "load_scored_issues", return_value=[]), \
@@ -432,6 +438,26 @@ class PathRenderingAndErrorsTests(unittest.TestCase):
         self.assertGreater(payload.count(b"/Type /Page "), 1)
         xref = int(payload.split(b"startxref\n")[1].splitlines()[0])
         self.assertTrue(payload[xref:].startswith(b"xref\n"))
+
+    def test_report_table_pdf_renders_sections_and_content_in_cells(self):
+        output = Mock(spec=Path)
+        rows = report._report_table_rows([
+            "Windows Container Hypothesis Validation - Evidence Triage",
+            "Generated: 2026-10-23 12:00:00 UTC",
+            "",
+            "Adaptive weekly hypotheses (authoritative latest decisions)",
+            "Decision: qualifying | area: networking | streak: 1/3",
+        ])
+
+        report._write_pdf([], output, table_rows=rows, column_widths=(140, 392))
+
+        payload = output.write_bytes.call_args.args[0]
+        self.assertIn(b"Section", payload)
+        self.assertIn(b"Report content", payload)
+        self.assertIn(b"Adaptive weekly hypotheses", payload)
+        self.assertIn(b"Decision:", payload)
+        self.assertIn(b"qualifying", payload)
+        self.assertIn(b" re S", payload)
 
     def test_output_errors_propagate_and_successful_cli_prints_path(self):
         with patch.object(report, "load_scored_issues", return_value=[]), \

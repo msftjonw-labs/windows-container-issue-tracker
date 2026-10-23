@@ -488,7 +488,141 @@ def _escape_pdf_text(value):
     return _pdf_text(value).replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
 
 
-def _write_pdf(lines, output_path):
+def _write_table_pdf(rows, output_path, column_widths, page_size, margin,
+                     header_row_index=0):
+    if not rows or not column_widths:
+        raise ValueError("PDF tables require rows and column widths")
+    if not 0 <= header_row_index < len(rows):
+        raise ValueError("PDF table header row is out of range")
+    if sum(column_widths) + 2 * margin > page_size[0]:
+        raise ValueError("PDF table columns exceed the page width")
+
+    column_count = len(column_widths)
+    normalized_rows = []
+    for row in rows:
+        if len(row) != column_count:
+            raise ValueError("PDF table rows must match the column count")
+        normalized_rows.append([
+            textwrap.wrap(
+                _pdf_text(value),
+                width=max(1, int((column_width - 12) / 4.5)),
+                break_long_words=True,
+                break_on_hyphens=True,
+            ) or [""]
+            for value, column_width in zip(row, column_widths)
+        ])
+
+    page_width, page_height = page_size
+    bottom = margin
+    x_start = margin
+    table_width = sum(column_widths)
+    streams = []
+    commands = []
+    cursor_y = page_height - margin
+
+    def draw_row(cells, header=False):
+        nonlocal cursor_y
+        row_height = max(map(len, cells)) * 10 + 8
+        if cursor_y - row_height < bottom:
+            return False
+        y_bottom = cursor_y - row_height
+        if header:
+            commands.append(f"0.88 g {x_start} {y_bottom} {table_width} {row_height} re f")
+        commands.append("0 g")
+        commands.append(f"0.45 G 0.6 w {x_start} {y_bottom} {table_width} {row_height} re S")
+        x = x_start
+        for cell_lines, column_width in zip(cells, column_widths):
+            commands.append(f"{x} {y_bottom} {column_width} {row_height} re S")
+            for line_index, line in enumerate(cell_lines):
+                baseline = cursor_y - 13 - line_index * 10
+                commands.append(
+                    f"BT /F1 8 Tf {x + 6} {baseline} Td "
+                    f"({_escape_pdf_text(line)}) Tj ET"
+                )
+            x += column_width
+        cursor_y = y_bottom
+        return True
+
+    def new_page():
+        nonlocal commands, cursor_y
+        if commands:
+            streams.append("\n".join(commands).encode("ascii"))
+        commands = ["0 G"]
+        cursor_y = page_height - margin
+
+    header = normalized_rows[header_row_index]
+    for row_index, row in enumerate(normalized_rows):
+        if not draw_row(row, header=row_index == header_row_index):
+            new_page()
+            if row_index > header_row_index:
+                draw_row(header, header=True)
+            if not draw_row(row):
+                raise ValueError("PDF table row exceeds the page height")
+    if commands:
+        streams.append("\n".join(commands).encode("ascii"))
+
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]
+    page_refs = []
+    for stream in streams:
+        page_number = len(objects) + 1
+        content_number = page_number + 1
+        page_refs.append(f"{page_number} 0 R")
+        objects.append(
+            (
+                f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {page_width} {page_height}] "
+                "/Resources << /Font << /F1 3 0 R >> >> /Contents "
+                f"{content_number} 0 R >>"
+            ).encode("ascii")
+        )
+        objects.append(
+            b"<< /Length "
+            + str(len(stream)).encode("ascii")
+            + b" >>\nstream\n"
+            + stream
+            + b"\nendstream"
+        )
+    objects[1] = (
+        b"<< /Type /Pages /Kids ["
+        + " ".join(page_refs).encode("ascii")
+        + b"] /Count "
+        + str(len(page_refs)).encode("ascii")
+        + b" >>"
+    )
+
+    pdf = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
+    offsets = [0]
+    for object_number, content in enumerate(objects, start=1):
+        offsets.append(len(pdf))
+        pdf.extend(f"{object_number} 0 obj\n".encode("ascii"))
+        pdf.extend(content)
+        pdf.extend(b"\nendobj\n")
+    xref_offset = len(pdf)
+    pdf.extend(f"xref\n0 {len(objects) + 1}\n".encode("ascii"))
+    pdf.extend(b"0000000000 65535 f \n")
+    for offset in offsets[1:]:
+        pdf.extend(f"{offset:010d} 00000 n \n".encode("ascii"))
+    pdf.extend(
+        (
+            f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\n"
+            f"startxref\n{xref_offset}\n%%EOF\n"
+        ).encode("ascii")
+    )
+    output_path.write_bytes(pdf)
+
+
+def _write_pdf(lines, output_path, table_rows=None, column_widths=None,
+               page_size=(612, 842), margin=40, header_row_index=0):
+    if table_rows is not None:
+        _write_table_pdf(
+            table_rows, output_path, column_widths, page_size, margin,
+            header_row_index,
+        )
+        return
+
     wrapped_lines = []
     for line in lines:
         wrapped_lines.extend(textwrap.wrap(_pdf_text(line), width=94) or [""])
@@ -571,6 +705,13 @@ def write_project_snapshot(project_id, items=None, output_directory=None, genera
         f"Items: {len(items)}",
         "",
     ]
+    table_rows = [
+        ("Windows Container Issue Snapshot", "", "", "", ""),
+        ("Generated", "", f"{generated_at:%Y-%m-%d %H:%M:%S UTC}", "", ""),
+        ("ProjectV2", "", project_url, "", ""),
+        ("Items", "", str(len(items)), "", ""),
+        ("Repository", "Issue", "Title", "Priority score", "URL"),
+    ]
     for item in items:
         content = item.get("content") or {}
         repository = (content.get("repository") or {}).get("nameWithOwner", "Unknown repository")
@@ -578,17 +719,24 @@ def write_project_snapshot(project_id, items=None, output_directory=None, genera
         title = content.get("title") or "Untitled issue"
         issue_ref = f"#{number}" if number is not None else "Draft item"
         score = (item.get("score") or {}).get("number")
-        score_text = f" | Priority score: {score}" if score is not None else ""
-        lines.append(f"{repository} {issue_ref}: {title}{score_text}")
-        if content.get("url"):
-            lines.append(f"  {content['url']}")
+        table_rows.append((
+            repository,
+            issue_ref,
+            title,
+            str(score) if score is not None else "Not set",
+            content.get("url", ""),
+        ))
 
     output_directory = Path(output_directory or SNAPSHOT_DIRECTORY)
     output_directory.mkdir(parents=True, exist_ok=True)
     output_path = output_directory / (
         f"windows-container-issue-snapshot-{generated_at:%Y-%m-%d}.pdf"
     )
-    _write_pdf(lines, output_path)
+    _write_pdf(
+        lines, output_path, table_rows=table_rows,
+        column_widths=(110, 55, 260, 85, 260), page_size=(842, 595), margin=36,
+        header_row_index=4,
+    )
     print(f"Project snapshot generated: {output_path}")
     return output_path
 

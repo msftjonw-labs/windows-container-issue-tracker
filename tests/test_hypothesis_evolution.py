@@ -626,7 +626,7 @@ class PersistenceBoundaryTests(unittest.TestCase):
         callback.side_effect = lambda state: order.append("callback")
         with patch.object(report, "load_scored_issues", return_value=[]), \
                 patch.object(Path, "mkdir"), \
-                patch.object(report, "_write_pdf", side_effect=lambda *args: order.append("pdf")):
+                patch.object(report, "_write_pdf", side_effect=lambda *args, **kwargs: order.append("pdf")):
             path = report.generate_report(generated_at=NOW, on_success=callback)
         self.assertIsInstance(path, Path)
         self.assertEqual(order, ["pdf", "callback"])

@@ -331,6 +331,32 @@ def build_report(records, generated_at, source_path, adaptive_lines=()):
     return lines
 
 
+def _report_table_rows(lines):
+    headings = (
+        "Adaptive weekly hypotheses",
+        "Original seed hypotheses",
+        "Method and limitations",
+        "Research limitations",
+        "Researched areas (",
+        "Adaptive method and limitations",
+        "Current supporting source showcase",
+    )
+    rows = [("Section", "Report content")]
+    section = "Report overview"
+    for index, line in enumerate(lines):
+        if not line.strip():
+            continue
+        if index == 0:
+            rows.append((section, line))
+            continue
+        if line.startswith(headings):
+            section = line
+            rows.append((section, ""))
+        else:
+            rows.append((section, line))
+    return rows
+
+
 def generate_report(scored_path=None, output_directory=None, generated_at=None,
                     previous_state=None, on_success=None):
     generated_at = generated_at or datetime.now(timezone.utc)
@@ -346,7 +372,10 @@ def generate_report(scored_path=None, output_directory=None, generated_at=None,
     directory = Path(output_directory) if output_directory is not None else ROOT / "report-history"
     directory.mkdir(parents=True, exist_ok=True)
     output = directory / f"windows-container-hypothesis-validation-{generated_at:%Y-%m-%d}.pdf"
-    _write_pdf(lines, output)
+    _write_pdf(
+        lines, output, table_rows=_report_table_rows(lines),
+        column_widths=(140, 392),
+    )
     if on_success is not None:
         on_success(new_state)
     return output

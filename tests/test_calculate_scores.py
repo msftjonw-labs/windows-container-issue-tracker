@@ -361,10 +361,20 @@ class ProjectSnapshotTests(unittest.TestCase):
             )
             pdf = output_path.read_bytes()
             self.assertTrue(pdf.startswith(b"%PDF-1.4"))
-            self.assertIn(b"ProjectV2: https://github.com/orgs/msftjonw-labs/projects/1", pdf)
-            self.assertIn(b"example/repo #42: Windows container startup", pdf)
-            self.assertIn(b"Priority score: 17.5", pdf)
+            self.assertIn(b"/MediaBox [0 0 842 595]", pdf)
+            self.assertIn(b"ProjectV2", pdf)
+            self.assertIn(b"https://github.com/orgs/msftjonw-labs/projects/1", pdf)
+            self.assertIn(b"Repository", pdf)
+            self.assertIn(b"Issue", pdf)
+            self.assertIn(b"Title", pdf)
+            self.assertIn(b"Priority score", pdf)
+            self.assertIn(b"URL", pdf)
+            self.assertIn(b"example/repo", pdf)
+            self.assertIn(b"#42", pdf)
+            self.assertIn(b"Windows container startup", pdf)
+            self.assertIn(b"17.5", pdf)
             self.assertIn(b"https://github.com/example/repo/issues/42", pdf)
+            self.assertIn(b" re S", pdf)
 
 
 class RunGraphqlTests(unittest.TestCase):
