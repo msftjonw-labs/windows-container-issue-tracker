@@ -17,11 +17,11 @@ def main():
     message["From"] = os.environ["SMTP_FROM"]
     message["To"] = os.environ["WEEKLY_EMAIL_RECIPIENTS"]
     message["Subject"] = (
-        f'Weekly run {os.environ["RUN_STATUS"]}: {os.environ["GITHUB_REPOSITORY"]}'
+        f'Issue scoring run {os.environ["RUN_STATUS"]}: {os.environ["GITHUB_REPOSITORY"]}'
     )
     message.set_content(
         f'Repository: {os.environ["GITHUB_REPOSITORY"]}\n'
-        f'Scheduled scoring run status: {os.environ["RUN_STATUS"]}\n'
+        f'Issue scoring run status: {os.environ["RUN_STATUS"]}\n'
         f'View workflow run: {os.environ["RUN_URL"]}\n'
     )
 

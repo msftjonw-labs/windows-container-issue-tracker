@@ -51,8 +51,12 @@ Run the mocked regression suite without live credentials:
 
 The workflow runs every Monday at 17:00 UTC. A separate email job depends on
 the issue-scoring job and sends its status and a link to the workflow run only
-after that job succeeds. Failed, cancelled, or skipped scoring jobs and manual
-runs do not send email. Configure the following under
+after that job succeeds. Scheduled runs send email automatically. To request
+email for a manual run, open **Actions → Calculate Issue Priority Scores →
+Run workflow** and enable **Send an email after issue scoring succeeds**
+(`send_email`). This option defaults to off and does not publish a weekly
+digest. Failed, cancelled, or skipped scoring jobs never send email.
+Configure the following under
 **Settings → Secrets and variables → Actions**.
 
 In the **Secrets** tab, create:
