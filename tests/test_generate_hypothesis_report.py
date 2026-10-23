@@ -384,12 +384,13 @@ class PathRenderingAndErrorsTests(unittest.TestCase):
         mkdir.assert_called_once_with(parents=True, exist_ok=True)
         self.assertEqual(writer.call_args.args[1], path)
         self.assertIn("2026-10-23 22:00:00 UTC", "\n".join(writer.call_args.args[0]))
-        table_rows = writer.call_args.kwargs["table_rows"]
-        self.assertEqual(table_rows[0], ("Section", "Report content"))
-        self.assertTrue(any(row[0] == "Adaptive weekly hypotheses (authoritative latest decisions)"
-                            for row in table_rows))
-        self.assertTrue(any("Current supporting source showcase" in row[0]
-                            for row in table_rows))
+        sections = writer.call_args.kwargs["document_sections"]
+        self.assertEqual(sections[0]["type"], "bullets")
+        self.assertTrue(any(item.startswith("Observation week:") for item in sections[0]["items"]))
+        self.assertTrue(any(item.startswith("H1:") and "Decision:" in item
+                            for item in sections[0]["items"]))
+        self.assertTrue(any(section.get("title") == "H1 supporting evidence"
+                            for section in sections))
 
     def test_empty_export_explicit_zero_sample_not_validation(self):
         with patch.object(report, "load_scored_issues", return_value=[]), \
@@ -458,6 +459,59 @@ class PathRenderingAndErrorsTests(unittest.TestCase):
         self.assertIn(b"Decision:", payload)
         self.assertIn(b"qualifying", payload)
         self.assertIn(b" re S", payload)
+
+    def test_report_pdf_sections_use_bullets_and_hypothesis_specific_evidence_tables(self):
+        lines = [
+            "Windows Container Hypothesis Validation - Evidence Triage",
+            "Generated: 2026-10-23 12:00:00 UTC",
+            "Total analyzed issues: 2 (all qualifying)",
+            "Adaptive weekly hypotheses (authoritative latest decisions)",
+            "Observation week: 2026-W43 | frozen.",
+            "H1 [networking:dns] Windows DNS hypothesis",
+            "Decision: qualifying | area: networking | streak: 1/3",
+            "H2 [security:gmsa] Windows gMSA hypothesis",
+            "Decision: provisional | area: security | streak: 0/3",
+            "Researched areas (current evidence)",
+            "Current supporting source showcase",
+            "Supporting sources shown: 1 of 1 eligible unique URLs.",
+            "Current source | issue | repository: example/repo | updated: 2026-10-22",
+            "Source title: DNS fails in Windows containers",
+            "https://github.com/example/repo/issues/1",
+            "Supporting signal keys: networking:dns",
+            "Selection reason: current hypothesis; urgency: high.",
+            "Context excerpt: Windows container DNS resolution fails.",
+            "Other evidence - contradicting: 0 candidate signals.",
+        ]
+
+        sections = report._report_pdf_sections(lines)
+        bullets = sections[0]["items"]
+        self.assertEqual(bullets[:3], lines[:3])
+        self.assertIn("Observation week: 2026-W43 | frozen.", bullets)
+        self.assertIn(
+            "H1: Windows DNS hypothesis — Decision: qualifying | area: networking | streak: 1/3",
+            bullets,
+        )
+        self.assertIn(
+            "H2: Windows gMSA hypothesis — Decision: provisional | area: security | streak: 0/3",
+            bullets,
+        )
+        h1_table = next(section for section in sections if section["title"] == "H1 supporting evidence")
+        h2_table = next(section for section in sections if section["title"] == "H2 supporting evidence")
+        self.assertEqual(h1_table["rows"][1][0], "example/repo")
+        self.assertIn("Windows container DNS resolution fails.", h1_table["rows"][1][2])
+        self.assertEqual(len(h2_table["rows"]), 2)
+        details = "\n".join(" ".join(row) for row in sections[-1]["rows"])
+        self.assertIn("Other evidence - contradicting", details)
+        self.assertNotIn("https://github.com/example/repo/issues/1", details)
+
+        output = Mock(spec=Path)
+        report._write_pdf([], output, document_sections=sections)
+        payload = output.write_bytes.call_args.args[0]
+        self.assertTrue(payload.startswith(b"%PDF-1.4"))
+        self.assertIn(b" H1 supporting evidence", payload)
+        self.assertIn(b"Windows DNS hypothesis", payload)
+        self.assertIn(b"Repository", payload)
+        self.assertTrue(payload.endswith(b"%%EOF\n"))
 
     def test_output_errors_propagate_and_successful_cli_prints_path(self):
         with patch.object(report, "load_scored_issues", return_value=[]), \

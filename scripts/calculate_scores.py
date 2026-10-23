@@ -614,8 +614,167 @@ def _write_table_pdf(rows, output_path, column_widths, page_size, margin,
     output_path.write_bytes(pdf)
 
 
+def _write_document_pdf(sections, output_path, page_size=(842, 595), margin=36):
+    page_width, page_height = page_size
+    bottom = margin
+    streams = []
+    commands = ["0 G"]
+    cursor_y = page_height - margin
+
+    def save_page():
+        nonlocal commands, cursor_y
+        if commands:
+            streams.append("\n".join(commands).encode("ascii"))
+        commands = ["0 G"]
+        cursor_y = page_height - margin
+
+    def text_lines(value, width, font_size=8):
+        width_chars = max(1, int((width - 12) / (font_size * 0.55)))
+        return textwrap.wrap(
+            _pdf_text(value), width=width_chars,
+            break_long_words=True, break_on_hyphens=True,
+        ) or [""]
+
+    def draw_bullets(items):
+        nonlocal cursor_y
+        for item in items:
+            wrapped = text_lines(item, page_width - 2 * margin - 16, 9)
+            row_height = max(14, len(wrapped) * 12 + 4)
+            if cursor_y - row_height < bottom:
+                save_page()
+            baseline = cursor_y - 13
+            commands.append(
+                f"{margin + 3} {baseline - 1} m {margin + 3} {baseline + 3} "
+                f"{margin + 7} {baseline + 3} {margin + 7} {baseline - 1} c "
+                f"{margin + 7} {baseline - 5} {margin + 3} {baseline - 5} "
+                f"{margin + 3} {baseline - 1} c f"
+            )
+            for line_index, line in enumerate(wrapped):
+                commands.append(
+                    f"BT /F1 9 Tf {margin + 14} {baseline - line_index * 12} Td "
+                    f"({_escape_pdf_text(line)}) Tj ET"
+                )
+            cursor_y -= row_height
+
+    def draw_table(title, rows, widths):
+        nonlocal cursor_y
+        if not rows or not widths or sum(widths) + 2 * margin > page_width:
+            raise ValueError("Invalid PDF document table layout")
+        commands.append(
+            f"BT /F1 11 Tf {margin} {cursor_y - 13} Td "
+            f"({_escape_pdf_text(title)}) Tj ET"
+        )
+        cursor_y -= 22
+        normalized = []
+        for row in rows:
+            if len(row) != len(widths):
+                raise ValueError("PDF document table rows must match the column count")
+            normalized.append([
+                text_lines(value, width)
+                for value, width in zip(row, widths)
+            ])
+        table_width = sum(widths)
+        header = normalized[0]
+
+        def draw_row(cells, is_header=False):
+            nonlocal cursor_y
+            row_height = max(map(len, cells)) * 10 + 8
+            if cursor_y - row_height < bottom:
+                return False
+            y_bottom = cursor_y - row_height
+            if is_header:
+                commands.append(f"0.88 g {margin} {y_bottom} {table_width} {row_height} re f")
+            commands.append("0 g")
+            commands.append(
+                f"0.45 G 0.6 w {margin} {y_bottom} {table_width} {row_height} re S"
+            )
+            x = margin
+            for cell_lines, width in zip(cells, widths):
+                commands.append(f"{x} {y_bottom} {width} {row_height} re S")
+                for line_index, line in enumerate(cell_lines):
+                    commands.append(
+                        f"BT /F1 8 Tf {x + 6} {cursor_y - 13 - line_index * 10} Td "
+                        f"({_escape_pdf_text(line)}) Tj ET"
+                    )
+                x += width
+            cursor_y = y_bottom
+            return True
+
+        for row_index, row in enumerate(normalized):
+            if not draw_row(row, is_header=row_index == 0):
+                save_page()
+                if row_index:
+                    draw_row(header, is_header=True)
+                if not draw_row(row):
+                    raise ValueError("PDF document table row exceeds the page height")
+        cursor_y -= 14
+
+    for section in sections:
+        if section["type"] == "bullets":
+            draw_bullets(section["items"])
+        elif section["type"] == "table":
+            draw_table(section["title"], section["rows"], section["widths"])
+        else:
+            raise ValueError(f"Unknown PDF document section: {section['type']}")
+    if commands:
+        streams.append("\n".join(commands).encode("ascii"))
+
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]
+    page_refs = []
+    for stream in streams:
+        page_number = len(objects) + 1
+        content_number = page_number + 1
+        page_refs.append(f"{page_number} 0 R")
+        objects.append(
+            (
+                f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {page_width} {page_height}] "
+                "/Resources << /Font << /F1 3 0 R >> >> /Contents "
+                f"{content_number} 0 R >>"
+            ).encode("ascii")
+        )
+        objects.append(
+            b"<< /Length "
+            + str(len(stream)).encode("ascii")
+            + b" >>\nstream\n"
+            + stream
+            + b"\nendstream"
+        )
+    objects[1] = (
+        b"<< /Type /Pages /Kids ["
+        + " ".join(page_refs).encode("ascii")
+        + f"] /Count {len(page_refs)} >>".encode("ascii")
+    )
+    pdf = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
+    offsets = [0]
+    for object_number, content in enumerate(objects, start=1):
+        offsets.append(len(pdf))
+        pdf.extend(f"{object_number} 0 obj\n".encode("ascii"))
+        pdf.extend(content)
+        pdf.extend(b"\nendobj\n")
+    xref_offset = len(pdf)
+    pdf.extend(f"xref\n0 {len(objects) + 1}\n".encode("ascii"))
+    pdf.extend(b"0000000000 65535 f \n")
+    for offset in offsets[1:]:
+        pdf.extend(f"{offset:010d} 00000 n \n".encode("ascii"))
+    pdf.extend(
+        (
+            f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\n"
+            f"startxref\n{xref_offset}\n%%EOF\n"
+        ).encode("ascii")
+    )
+    output_path.write_bytes(pdf)
+
+
 def _write_pdf(lines, output_path, table_rows=None, column_widths=None,
-               page_size=(612, 842), margin=40, header_row_index=0):
+               page_size=(612, 842), margin=40, header_row_index=0,
+               document_sections=None):
+    if document_sections is not None:
+        _write_document_pdf(document_sections, output_path)
+        return
     if table_rows is not None:
         _write_table_pdf(
             table_rows, output_path, column_widths, page_size, margin,

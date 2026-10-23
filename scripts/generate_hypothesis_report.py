@@ -357,6 +357,121 @@ def _report_table_rows(lines):
     return rows
 
 
+def _report_pdf_sections(lines):
+    summary = [lines[0], lines[1]]
+    summary.extend(line for line in lines if line.startswith("Total analyzed issues:"))
+    hypotheses = {}
+    for index, line in enumerate(lines):
+        match = re.match(r"^(H[12]) \[([^]]+)\]\s*(.*)$", line)
+        if not match:
+            continue
+        hypothesis_id, key, title = match.groups()
+        decision = lines[index + 1] if index + 1 < len(lines) else "Decision: unavailable"
+        hypotheses[hypothesis_id] = {
+            "key": key,
+            "title": title or key,
+            "decision": decision.removeprefix("Decision: "),
+            "title_index": index,
+        }
+    observation = next(
+        (line for line in lines if line.startswith("Observation week:")), None
+    )
+    if observation:
+        summary.append(observation)
+    omitted = {0, 1}
+    omitted.update(
+        index for index, line in enumerate(lines)
+        if line.startswith(("Total analyzed issues:", "Observation week:"))
+    )
+    evidence = {}
+    for hypothesis_id in ("H1", "H2"):
+        hypothesis = hypotheses.get(hypothesis_id)
+        if hypothesis:
+            summary.append(
+                f"{hypothesis_id}: {hypothesis['title']} — Decision: {hypothesis['decision']}"
+            )
+            omitted.add(hypothesis["title_index"])
+            omitted.add(hypothesis["title_index"] + 1)
+        evidence[hypothesis_id] = []
+
+    sources = []
+    for index, line in enumerate(lines):
+        if not line.startswith("Current source |"):
+            continue
+        parts = [part.strip() for part in line.split("|")]
+        if len(parts) < 4:
+            continue
+        source = {
+            "type": parts[1],
+            "repository": parts[2].removeprefix("repository: "),
+            "updated": parts[3].removeprefix("updated: "),
+            "title": "",
+            "url": "",
+            "keys": [],
+            "excerpt": "",
+        }
+        for offset in range(1, 6):
+            if index + offset >= len(lines):
+                break
+            detail = lines[index + offset]
+            if detail.startswith("Source title: "):
+                source["title"] = detail.removeprefix("Source title: ")
+            elif detail.startswith("Supporting signal keys: "):
+                source["keys"] = [
+                    key.strip()
+                    for key in detail.removeprefix("Supporting signal keys: ").split(",")
+                    if key.strip()
+                ]
+            elif detail.startswith("Context excerpt: "):
+                source["excerpt"] = detail.removeprefix("Context excerpt: ")
+            elif detail.startswith("http"):
+                source["url"] = detail
+        sources.append(source)
+        omitted.update(range(index, min(index + 6, len(lines))))
+
+    for source in sources:
+        for hypothesis_id, hypothesis in hypotheses.items():
+            if hypothesis["key"] in source["keys"]:
+                evidence[hypothesis_id].append([
+                    source["repository"],
+                    f"{source['type']} | {source['updated']}",
+                    f"{source['title']}\nSupporting context: {source['excerpt']}",
+                    source["url"],
+                    ", ".join(source["keys"]),
+                ])
+
+    sections = [{"type": "bullets", "items": summary}]
+    evidence_widths = (105, 100, 275, 190, 100)
+    for hypothesis_id in ("H1", "H2"):
+        hypothesis = hypotheses.get(hypothesis_id)
+        if not hypothesis:
+            continue
+        rows = [[
+            "Repository", "Source / updated", "Title and supporting context",
+            "URL", "Signal keys",
+        ]]
+        rows.extend(evidence[hypothesis_id])
+        if not evidence[hypothesis_id]:
+            rows.append([
+                "No current supporting sources selected", "", "", "", "",
+            ])
+        sections.append({
+            "type": "table",
+            "title": f"{hypothesis_id} supporting evidence",
+            "rows": rows,
+            "widths": evidence_widths,
+        })
+
+    remaining = [line for index, line in enumerate(lines) if index not in omitted]
+    sections.append({
+        "type": "table",
+        "title": "Additional report details",
+        "rows": _report_table_rows(remaining),
+        "widths": (140, 630),
+    })
+    return sections
+
+
 def generate_report(scored_path=None, output_directory=None, generated_at=None,
                     previous_state=None, on_success=None):
     generated_at = generated_at or datetime.now(timezone.utc)
@@ -373,8 +488,7 @@ def generate_report(scored_path=None, output_directory=None, generated_at=None,
     directory.mkdir(parents=True, exist_ok=True)
     output = directory / f"windows-container-hypothesis-validation-{generated_at:%Y-%m-%d}.pdf"
     _write_pdf(
-        lines, output, table_rows=_report_table_rows(lines),
-        column_widths=(140, 392),
+        lines, output, document_sections=_report_pdf_sections(lines),
     )
     if on_success is not None:
         on_success(new_state)
