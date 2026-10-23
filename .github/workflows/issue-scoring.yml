@@ -21,6 +21,9 @@ concurrency:
 jobs:
   score-issues:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
     outputs:
       scoring_status: ${{ steps.scoring.outcome }}
       report_status: ${{ steps.hypothesis.outcome }}
@@ -97,7 +100,9 @@ jobs:
         id: hypothesis
         env:
           GITHUB_APP_TOKEN: ${{ steps.generate-app-token.outputs.token }}
-        run: python scripts/generate_hypothesis_report.py
+          GITHUB_TOKEN: ${{ github.token }}
+          HYPOTHESIS_EXCLUDED_OWNERS: ${{ vars.HYPOTHESIS_EXCLUDED_OWNERS }}
+        run: python scripts/hypothesis_state.py
 
       - name: Upload issue snapshot
         if: ${{ always() && steps.scoring.outcome == 'success' }}

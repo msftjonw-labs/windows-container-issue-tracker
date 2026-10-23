@@ -14,13 +14,15 @@ Each run now performs three actions in order:
    issue snapshot PDF. Export **all scored issues**, not just the top ten Project
    items or top three digest entries, to `scoring-output/scored-issues.json`.
 2. Re-fetch those issues and review their current descriptions, latest comments,
-   and latest updated linked pull request. Generate
+   and latest updated linked pull request. Evolve hypotheses from the observed
+   signals, track their weekly qualification, and generate
    `report-history/windows-container-hypothesis-validation-yyyy-mm-dd.pdf`
    using the UTC generation date.
 3. Send email with the separate scoring and report-generation statuses, the
    workflow link, the Project link, and both PDFs when available.
 
-The report first states these provisional hypotheses:
+Research starts from these provisional hypotheses, rather than repeatedly
+assuming that they remain the right questions:
 
 - **Hypothesis 1:** The community does not want to use Windows containers as the
   development platform because it is not free and lacks open source community
@@ -37,6 +39,72 @@ establish licensing facts, motives, causality, community growth, or popularity.
 The sampled open, active issues do not represent all developers or non-adopters.
 Validate findings through interviews, licensing research, and longitudinal data
 before accepting or rejecting either hypothesis.
+
+### Adaptive weekly research
+
+The report states the **latest hypotheses**, the current research/validation
+areas (such as networking, identity, image compatibility, and tooling), decisions
+to revise or retain them, and supporting and contrary evidence. Evidence includes
+the actual public repository, issue/PR/comment URL, source update date, and a
+context excerpt. Area labels and recurring signals are research indicators, not
+proof that a product area or causal claim has been scientifically validated.
+
+The lifecycle uses UTC calendar weeks, starting Monday:
+
+- When an existing hypothesis lacks sufficient supporting signals, revise it
+  toward the strongest observed eligible signal. Strength is based primarily on
+  distinct repository reach, not comment volume or Microsoft repository boosts.
+  A replacement with fewer than three repositories is explicitly exploratory,
+  not a qualified or validated hypothesis. No evidence means defer, not invent.
+- A hypothesis qualifies for retention only when similar supporting signals
+  occur in **at least three distinct public repositories**, excluding
+  Microsoft-owned sources, including Microsoft and Azure/AKS. Excluded sources
+  remain visible as context but cannot satisfy the threshold. Repository names
+  are normalized and duplicate references cannot inflate the count.
+  A new or revised hypothesis meeting this threshold starts at qualifying
+  week one immediately; historical discovery alone earns no weekly credit.
+- Hold the first successful hypothesis decision for the rest of its UTC week.
+  Manual reruns may show refreshed source evidence but cannot change the frozen
+  weekly decision or add another week to its streak.
+  Frozen decisions retain a bounded set of source witnesses so later reports
+  can still cite the repositories and URLs that justified them.
+- At the next weekly observation, evaluate new or updated evidence from the
+  preceding seven days, after the prior observation when applicable. This
+  includes Tuesday–Sunday updates in the next Monday's run and avoids reusing
+  overlapping observations. Re-reading historical material is not a new
+  confirmation.
+  A missed week or insufficient qualifying evidence breaks the streak; a
+  revision starts a new hypothesis rather than inheriting the old streak.
+- After **three consecutive qualifying weeks for the same hypothesis/signal**,
+  mark its validation cycle complete and stop extending that cycle. Future
+  reports retain the completed outcome for review, not perpetual revalidation.
+
+Public repositories are the independence unit requested here; three repositories
+are not necessarily three independent organizations or customer populations.
+Heuristic area/barrier matching can miss synonyms, context, or negation.
+Source update dates are a freshness proxy, not independent confirmation of when
+a problem happened. Interpret streak completion as the operational research exit
+criterion, not proof of adoption barriers or community-growth causality.
+Set the optional Actions variable `HYPOTHESIS_EXCLUDED_OWNERS` to a
+comma-separated list of additional owners to exclude. This extends, rather
+than replaces, the built-in Microsoft-owned organization exclusions.
+
+### Durable research state
+
+The workflow stores compact weekly lifecycle state in a dedicated
+`[hypothesis-research-state] Weekly research lifecycle` issue created by
+`github-actions[bot]` in this repository. This survives fresh runners and artifact
+expiry without committing generated state or granting the job contents-write
+permission. The scoring job receives **issues: write** on its repository-scoped
+`GITHUB_TOKEN` solely for this state store; existing App credentials still read
+the monitored upstream issues and PRs. Email and action ordering are unchanged.
+
+Do not edit the machine-readable issue body. Invalid/duplicate state, read/write
+errors, or detected concurrent changes fail reporting visibly instead of silently
+resetting the research. State is saved only after the PDF has been generated.
+Workflow concurrency serializes updates. A failed save fails action 2 and the
+email reports that failure; retrying must not manufacture another weekly result.
+The managed state issue must remain discoverable (closed issues are supported).
 
 Each scored issue appears even when no relevant evidence or linked PR exists.
 The report reads the latest 100 comments, not the complete discussion history.
@@ -57,7 +125,10 @@ directories, so a failed run cannot attach an older checked-in report.
 
 For local execution, run `python scripts/calculate_scores.py` with the existing
 scoring configuration, then `python scripts/generate_hypothesis_report.py` with
-`GITHUB_APP_TOKEN` (or `GH_PAT`). Both scripts use `SCORED_ISSUES_PATH` when set;
+`GITHUB_APP_TOKEN` (or `GH_PAT`) for a non-persisting preview. The workflow instead
+runs `python scripts/hypothesis_state.py`, which also requires `GITHUB_REPOSITORY`
+and a repository-scoped `GITHUB_TOKEN` to load and save weekly state. Both scoring
+and reporting use `SCORED_ISSUES_PATH` when set;
 otherwise the export path above is used. The report directory is created when
 needed, including an explicitly inconclusive report for an empty scored list.
 

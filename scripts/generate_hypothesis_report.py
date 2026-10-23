@@ -10,8 +10,10 @@ import sys
 
 if __package__:
     from .calculate_scores import _write_pdf, run_graphql
+    from .hypothesis_evolution import evolve, validate_state
 else:
     from calculate_scores import _write_pdf, run_graphql
+    from hypothesis_evolution import evolve, validate_state
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -31,7 +33,7 @@ query HypothesisIssue($id: ID!) {
   node(id: $id) {
     ... on Issue {
 """ + DETAIL_FIELDS + """
-      repository { nameWithOwner }
+      repository { nameWithOwner isPrivate }
     }
   }
 }
@@ -63,6 +65,7 @@ query HypothesisPullRequest($id: ID!) {
     ... on PullRequest {
 """ + DETAIL_FIELDS + """
       mergedAt
+      repository { nameWithOwner isPrivate }
     }
   }
 }
@@ -130,6 +133,12 @@ def validate_details(node, kind, expected_id):
     if node["state"] not in (("OPEN", "CLOSED") if kind == "Issue" else ("OPEN", "CLOSED", "MERGED")):
         raise ValueError(f"Invalid {kind} state")
     timestamp(node["updatedAt"])
+    repository = node.get("repository")
+    if (not isinstance(repository, dict)
+            or not isinstance(repository.get("nameWithOwner"), str)
+            or not re.fullmatch(r"[\w.-]+/[\w.-]+", repository["nameWithOwner"])
+            or type(repository.get("isPrivate")) is not bool):
+        raise ValueError(f"Missing or invalid {kind} repository visibility")
     comments = node.get("comments")
     if not isinstance(comments, dict) or not isinstance(comments.get("nodes"), list):
         raise ValueError(f"Missing {kind} comments")
@@ -266,15 +275,20 @@ def triage(record, hypothesis):
     return signals
 
 
-def build_report(records, generated_at, source_path):
+def build_report(records, generated_at, source_path, adaptive_lines=()):
     lines = [
         "Windows Container Hypothesis Validation - Evidence Triage",
         f"Generated: {generated_at:%Y-%m-%d %H:%M:%S UTC}",
         f"Scored issue export: {source_path}",
         f"Selected issues: {len(records)} (all exported qualifying scored issues; no top-ten cap)",
         "",
-        "Hypothesis 1: " + HYPOTHESES[0],
-        "Hypothesis 2: " + HYPOTHESES[1],
+    ]
+    lines.extend(adaptive_lines)
+    lines.extend([
+        "",
+        "Original seed hypotheses (historical reference only)",
+        "Seed 1: " + HYPOTHESES[0],
+        "Seed 2: " + HYPOTHESES[1],
         "",
         "Method and limitations",
         "Fresh issue title/body/state/updatedAt/URL and latest 100 comments; all pages of",
@@ -285,10 +299,10 @@ def build_report(records, generated_at, source_path):
         "arbitrary URLs from issue text are fetched. API/missing-data errors abort the report.",
         "Deterministic paragraph-level keyword rules produce supporting, contradicting and",
         "inconclusive candidate signals, not automated semantic truth or hypothesis proof.",
-        "H1 support candidates require Windows containers, cost, community, development and",
+        "Original seed 1 lexical support requires Windows containers, cost, community, development and",
         "barrier terms together without detected negation, except affirmative 'not free'",
         "cost wording. Other negation, including 'not a barrier' or 'do not avoid', remains",
-        "disqualifying for H1 support candidates. H2 support candidates require",
+        "disqualifying for seed 1 support. Original seed 2 lexical support requires",
         "Nano Server gap/testing terms without detected negation. Explicit non-barrier/use",
         "or resolved-gap phrases can be contradicting candidates; other matches are inconclusive.",
         "Rules can miss paraphrases, sarcasm, code, quotations, historical context and negation;",
@@ -300,7 +314,8 @@ def build_report(records, generated_at, source_path):
         "or represent nonadopters. Activity, scores, open/closed/merged states do not",
         "establish popularity or growth. This report does not determine licensing/free-use truth.",
         "",
-    ]
+        "Issue and linked PR appendix (source context, not current hypothesis conclusions)",
+    ])
     for record in records:
         issue, scored, pr = record["issue"], record["scored"], record["pr"]
         lines.extend([
@@ -321,44 +336,33 @@ def build_report(records, generated_at, source_path):
                 "PR body excerpt: " + (excerpt(pr["body"]) or "[empty body]"),
                 f"PR comments inspected: {len(pr['comments']['nodes'])} of {pr['comments']['totalCount']}",
             ])
-        for hypothesis in (1, 2):
-            signals = triage(record, hypothesis)
-            lines.append(f"Hypothesis {hypothesis} candidate signals:")
-            for category in ("supporting", "contradicting", "inconclusive"):
-                matches = [signal for signal in signals if signal["category"] == category]
-                lines.append(f"  {category.capitalize()} candidates: {len(matches)}")
-                for signal in matches:
-                    lines.extend([
-                        f"  {signal['source']} | Updated: {signal['date']} | {signal['url']}",
-                        "  Context excerpt: " + signal["excerpt"],
-                        "  Rule rationale: " + signal["reason"],
-                    ])
-            if not signals:
-                lines.append("  No relevant candidate evidence detected; absence of a match is not disproof.")
-            lines.append(f"  Hypothesis {hypothesis} conclusion: insufficient evidence; human review required.")
         lines.append("")
     lines.extend([
-        "Overall conclusions",
-        "Hypothesis 1: insufficient evidence; human review required.",
-        "Hypothesis 2: insufficient evidence; human review required.",
+        "Research limitations",
         "Do not interpret candidate counts as prevalence or validation. Review full sources",
         "and obtain representative adopter/nonadopter research and longitudinal growth data.",
     ])
     return lines
 
 
-def generate_report(scored_path=None, output_directory=None, generated_at=None):
+def generate_report(scored_path=None, output_directory=None, generated_at=None,
+                    previous_state=None, on_success=None):
     generated_at = generated_at or datetime.now(timezone.utc)
     if generated_at.tzinfo is None:
         raise ValueError("Report time must be timezone-aware")
     generated_at = generated_at.astimezone(timezone.utc)
+    if previous_state is not None:
+        validate_state(previous_state)
     source = Path(scored_path) if scored_path is not None else input_path()
     records = [collect_issue(issue) for issue in load_scored_issues(source)]
-    lines = build_report(records, generated_at, source)
+    new_state, adaptive_lines = evolve(records, generated_at, previous_state, HYPOTHESES, triage)
+    lines = build_report(records, generated_at, source, adaptive_lines)
     directory = Path(output_directory) if output_directory is not None else ROOT / "report-history"
     directory.mkdir(parents=True, exist_ok=True)
     output = directory / f"windows-container-hypothesis-validation-{generated_at:%Y-%m-%d}.pdf"
     _write_pdf(lines, output)
+    if on_success is not None:
+        on_success(new_state)
     return output
 
 

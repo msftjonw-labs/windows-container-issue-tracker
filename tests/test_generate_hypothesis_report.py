@@ -32,11 +32,12 @@ def details(kind="Issue", index=1, body="Routine maintenance", comments=None):
         "__typename": kind, "id": f"{'I' if kind == 'Issue' else 'P'}{index}",
         "number": index, "title": "Fresh title", "body": body, "state": "OPEN",
         "updatedAt": DATE,
+        "repository": {"nameWithOwner": "owner/repo", "isPrivate": False},
         "url": f"https://github.com/owner/repo/{'issues' if kind == 'Issue' else 'pull'}/{index}",
         "comments": {"totalCount": len(comments or []), "nodes": comments or []},
     }
     if kind == "Issue":
-        result["repository"] = {"nameWithOwner": "owner/repo"}
+        result["repository"] = {"nameWithOwner": "owner/repo", "isPrivate": False}
     else:
         result["mergedAt"] = None
     return result
@@ -141,6 +142,18 @@ class SelectionAndFetchingTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             report.validate_details(pr, "PullRequest", "P1")
 
+    def test_issue_and_pr_repository_visibility_required(self):
+        for kind, identity in (("Issue", "I1"), ("PullRequest", "P1")):
+            for metadata in (None, {}, {"nameWithOwner": "owner/repo"},
+                             {"nameWithOwner": "owner/repo", "isPrivate": "false"},
+                             {"nameWithOwner": "invalid", "isPrivate": False}):
+                node = details(kind)
+                node["repository"] = metadata
+                with self.subTest(kind=kind, metadata=metadata), self.assertRaises(ValueError):
+                    report.validate_details(node, kind, identity)
+        self.assertIn("repository { nameWithOwner isPrivate }", report.ISSUE_QUERY)
+        self.assertIn("repository { nameWithOwner isPrivate }", report.PR_QUERY)
+
     def test_identity_mismatch_fails(self):
         issue = details()
         issue["repository"]["nameWithOwner"] = "other/repo"
@@ -230,11 +243,12 @@ class EvidenceTests(unittest.TestCase):
         ))
         self.assertIn("owner/repo #1: Fresh title", lines)
         self.assertIn("Latest linked PR: none found", lines)
-        self.assertEqual(lines.count("No relevant candidate evidence detected"), 2)
+        self.assertIn("Original seed hypotheses (historical reference only)", lines)
         for hypothesis in report.HYPOTHESES:
             self.assertIn(hypothesis, lines)
         self.assertIn("cannot establish prevalence, causality, community growth", lines)
-        self.assertIn("insufficient evidence; human review required", lines)
+        self.assertNotIn("Hypothesis 1 conclusion:", lines)
+        self.assertNotIn("Overall conclusions", lines)
         self.assertIn("not automated semantic truth", lines)
 
     def test_candidate_categories_context_urls_and_dates(self):
@@ -371,7 +385,7 @@ class PathRenderingAndErrorsTests(unittest.TestCase):
             report.generate_report()
         lines = "\n".join(writer.call_args.args[0])
         self.assertIn("Selected issues: 0", lines)
-        self.assertIn("Hypothesis 1: insufficient evidence", lines)
+        self.assertIn("Decision: deferred", lines)
 
     def test_failures_do_not_write_a_report_and_cli_exits_nonzero(self):
         for failure in (FileNotFoundError("export missing"), ValueError("bad JSON")):
@@ -408,7 +422,7 @@ class PathRenderingAndErrorsTests(unittest.TestCase):
         self.assertTrue(payload.startswith(b"%PDF-1.4"))
         self.assertTrue(payload.endswith(b"%%EOF\n"))
         self.assertIn(b"Fresh \\(title\\) \\\\ detail", payload)
-        self.assertIn(b"insufficient evidence", payload)
+        self.assertIn(b"historical reference only", payload)
         self.assertGreater(payload.count(b"/Type /Page "), 1)
         xref = int(payload.split(b"startxref\n")[1].splitlines()[0])
         self.assertTrue(payload[xref:].startswith(b"xref\n"))
