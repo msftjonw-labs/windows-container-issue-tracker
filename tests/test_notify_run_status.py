@@ -46,9 +46,10 @@ class NotifyRunStatusTests(unittest.TestCase):
                 self.assertEqual(message["From"], "sender@example.com")
                 self.assertIn(status, message["Subject"])
                 self.assertIn("example/repo", message["Subject"])
-                self.assertIn(status, message.get_content())
-                self.assertIn(self.env["RUN_URL"], message.get_content())
-                self.assertIn(self.env["PROJECT_URL"], message.get_content())
+                body = message.get_body(preferencelist=("plain",)).get_content()
+                self.assertIn(status, body)
+                self.assertIn(self.env["RUN_URL"], body)
+                self.assertIn(self.env["PROJECT_URL"], body)
                 attachment = list(message.iter_attachments())[0]
                 self.assertEqual(
                     attachment.get_filename(),
