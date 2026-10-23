@@ -83,6 +83,13 @@ jobs:
             Azure/AKS
         run: python scripts/calculate_scores.py
 
+      - name: Upload issue snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-snapshot-${{ github.run_id }}
+          path: snapshot-history/*.pdf
+          if-no-files-found: error
+
   email-weekly-status:
     needs: score-issues
     if: ${{ needs.score-issues.result == 'success' && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.send_email)) }}
@@ -96,6 +103,12 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Download issue snapshot
+        uses: actions/download-artifact@v4
+        with:
+          name: issue-snapshot-${{ github.run_id }}
+          path: snapshot-history
+
       - name: Email successful run status
         env:
           SMTP_HOST: ${{ vars.SMTP_HOST }}
@@ -105,4 +118,6 @@ jobs:
           WEEKLY_EMAIL_RECIPIENTS: ${{ vars.WEEKLY_EMAIL_RECIPIENTS }}
           RUN_STATUS: ${{ needs.score-issues.result }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          PROJECT_URL: https://github.com/orgs/msftjonw-labs/projects/1
+          SNAPSHOT_DIRECTORY: snapshot-history
         run: python3 scripts/notify_run_status.py

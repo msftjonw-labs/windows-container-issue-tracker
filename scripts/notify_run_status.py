@@ -2,12 +2,14 @@ import os
 import smtplib
 import ssl
 from email.message import EmailMessage
+from pathlib import Path
 
 
 def main():
     required = (
         "SMTP_HOST", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_FROM",
         "WEEKLY_EMAIL_RECIPIENTS", "RUN_STATUS", "RUN_URL", "GITHUB_REPOSITORY",
+        "PROJECT_URL", "SNAPSHOT_DIRECTORY",
     )
     missing = [name for name in required if not os.environ.get(name)]
     if missing:
@@ -23,6 +25,23 @@ def main():
         f'Repository: {os.environ["GITHUB_REPOSITORY"]}\n'
         f'Issue scoring run status: {os.environ["RUN_STATUS"]}\n'
         f'View workflow run: {os.environ["RUN_URL"]}\n'
+        f'View ProjectV2 board: {os.environ["PROJECT_URL"]}\n'
+    )
+
+    snapshots = sorted(
+        Path(os.environ["SNAPSHOT_DIRECTORY"]).glob("windows-container-issue-snapshot-*.pdf"),
+        key=lambda path: (path.stat().st_mtime_ns, path.name),
+    )
+    if not snapshots:
+        raise FileNotFoundError(
+            f"No issue snapshot PDF found in {os.environ['SNAPSHOT_DIRECTORY']}"
+        )
+    snapshot = snapshots[-1]
+    message.add_attachment(
+        snapshot.read_bytes(),
+        maintype="application",
+        subtype="pdf",
+        filename=snapshot.name,
     )
 
     with smtplib.SMTP_SSL(

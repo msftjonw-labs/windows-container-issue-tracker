@@ -1,4 +1,7 @@
 import unittest
+from datetime import datetime, timezone
+from pathlib import Path
+import tempfile
 from unittest.mock import Mock, patch
 
 from scripts import calculate_scores
@@ -257,7 +260,10 @@ class ProjectReconciliationTests(unittest.TestCase):
     @patch("scripts.calculate_scores.fetch_external_repo_issues")
     @patch("scripts.calculate_scores.reconcile_project")
     @patch("scripts.calculate_scores.publish_weekly_digest")
-    def test_collection_failure_never_changes_board_or_publishes_digest(self, digest, reconcile, fetch, discovery):
+    @patch("scripts.calculate_scores.write_project_snapshot")
+    def test_collection_failure_never_changes_board_or_publishes_digest(
+        self, snapshot, digest, reconcile, fetch, discovery
+    ):
         fetch.side_effect = [
             [{"id": "one", "repo_full_name": "example/one"}],
             RuntimeError("rate limit"),
@@ -266,21 +272,29 @@ class ProjectReconciliationTests(unittest.TestCase):
             calculate_scores.main()
         reconcile.assert_not_called()
         digest.assert_not_called()
+        snapshot.assert_not_called()
 
     @patch.object(calculate_scores, "TARGET_REPOS", ["example/one", "example/two"])
     @patch("scripts.calculate_scores.get_project_and_field_ids", return_value=("project", "score", "source"))
     @patch("scripts.calculate_scores.fetch_external_repo_issues")
     @patch("scripts.calculate_scores.reconcile_project")
     @patch("scripts.calculate_scores.publish_weekly_digest")
-    def test_collects_before_sync_then_publishes_digest(self, digest, reconcile, fetch, discovery):
+    @patch("scripts.calculate_scores.write_project_snapshot")
+    def test_collects_before_sync_then_publishes_digest(
+        self, snapshot, digest, reconcile, fetch, discovery
+    ):
         events = []
         issues = [{"id": str(n), "repo_full_name": "example/one", "raw_label_names": []} for n in range(12)]
         fetch.side_effect = lambda repo: events.append(repo) or issues
         reconcile.side_effect = lambda *args: events.append("sync")
         digest.side_effect = lambda *args: events.append("digest")
+        snapshot.side_effect = lambda *args: events.append("snapshot")
         with patch.dict("os.environ", {"PUBLISH_WEEKLY_DIGEST": "true"}):
             calculate_scores.main()
-        self.assertEqual(events, ["example/one", "example/two", "sync", "digest"])
+        self.assertEqual(
+            events,
+            ["example/one", "example/two", "sync", "digest", "snapshot"],
+        )
         self.assertEqual(len(reconcile.call_args.args[3]), 20)
         self.assertTrue(all(len(top) == 3 for top in digest.call_args.args[0].values()))
 
@@ -294,6 +308,38 @@ class ProjectReconciliationTests(unittest.TestCase):
             ]},
         }
         self.assertEqual(calculate_scores.compute_priority_score(issue), 125)
+
+
+class ProjectSnapshotTests(unittest.TestCase):
+    def test_writes_dated_pdf_with_project_and_issue_details(self):
+        generated_at = datetime(2026, 10, 23, 4, 0, tzinfo=timezone.utc)
+        items = [{
+            "content": {
+                "number": 42,
+                "title": "Windows container startup",
+                "url": "https://github.com/example/repo/issues/42",
+                "repository": {"nameWithOwner": "example/repo"},
+            },
+            "score": {"number": 17.5},
+        }]
+        with tempfile.TemporaryDirectory() as directory:
+            output_path = calculate_scores.write_project_snapshot(
+                "project-id",
+                items=items,
+                output_directory=directory,
+                generated_at=generated_at,
+            )
+
+            self.assertEqual(
+                output_path,
+                Path(directory) / "windows-container-issue-snapshot-2026-10-23.pdf",
+            )
+            pdf = output_path.read_bytes()
+            self.assertTrue(pdf.startswith(b"%PDF-1.4"))
+            self.assertIn(b"ProjectV2: https://github.com/orgs/msftjonw-labs/projects/1", pdf)
+            self.assertIn(b"example/repo #42: Windows container startup", pdf)
+            self.assertIn(b"Priority score: 17.5", pdf)
+            self.assertIn(b"https://github.com/example/repo/issues/42", pdf)
 
 
 class RunGraphqlTests(unittest.TestCase):
