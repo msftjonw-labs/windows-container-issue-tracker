@@ -242,6 +242,125 @@ def _signals(records, now, triage, window_start):
     return result
 
 
+URGENCY = {
+    "p0": 0, "critical": 0, "blocker": 0,
+    "p1": 1, "high": 1, "urgent": 1,
+    "p2": 2, "medium": 2,
+    "p3": 3, "low": 3,
+    "p4": 4, "lowest": 4,
+}
+
+
+def _source_metadata(records, now):
+    """Display metadata only; never alter the evidence used for weekly decisions."""
+    metadata = {}
+    for record in records:
+        for node in (record["issue"], record["pr"]):
+            if node is None:
+                continue
+            labels = []
+            for label in node.get("labels", {}).get("nodes", []):
+                match = re.fullmatch(
+                    r"(?:(?:priority|severity)\s*[:/]\s*)?"
+                    r"(p[0-4]|critical|blocker|high|urgent|medium|low|lowest)",
+                    label["name"].strip(), re.I)
+                if match:
+                    labels.append((URGENCY[match[1].casefold()], label["name"]))
+            urgency, urgency_label = min(labels) if labels else (5, "unlabeled/unknown")
+            recent = {
+                comment["url"] for comment in node["comments"]["nodes"]
+                if comment.get("createdAt")
+                and now - timedelta(days=7) < _time(comment["createdAt"]) <= now
+            }
+            info = dict(urgency=urgency, urgency_label=urgency_label, activity=len(recent),
+                        title=" ".join(node["title"].split())[:160])
+            for url in [node["url"], *(c["url"] for c in node["comments"]["nodes"])]:
+                candidates = [info, metadata[url]] if url in metadata else [info]
+                metadata[url] = min(candidates, key=lambda item: (
+                    item["urgency"], -item["activity"], item["urgency_label"], item["title"]))
+    return metadata
+
+
+def select_supporting_sources(records, signals, now, current_keys=(), limit=5):
+    """Rank unique source URLs, then prefer repository diversity, capped at five."""
+    if type(limit) is not int or not 1 <= limit <= 5:
+        raise ValueError("Source display limit must be between 1 and 5")
+    metadata = _source_metadata(records, now)
+    sources = {}
+    current_keys = set(current_keys)
+    for signal in signals:
+        if (not signal["eligible"] or signal["category"] != "supporting"
+                or _time(signal["date"]) > now):
+            continue
+        source = sources.setdefault(signal["url"], dict(
+            url=signal["url"], repo=signal["repo"], source=signal["source"],
+            date=signal["date"], keys=set(), excerpts=set(),
+            **metadata[signal["url"]]))
+        source["keys"].add(signal["key"])
+        source["excerpts"].add(signal["excerpt"])
+        source["date"] = max(source["date"], signal["date"], key=_time)
+    ranked = sorted(sources.values(), key=lambda source: (
+        not bool(source["keys"] & current_keys),
+        source["urgency"], -source["activity"], -_time(source["date"]).timestamp(),
+        source["url"]))
+    selected, repositories = [], set()
+    for source in ranked:
+        if source["repo"] not in repositories:
+            selected.append(dict(source, selection="best-ranked source for a distinct repository"))
+            repositories.add(source["repo"])
+        if len(selected) == limit:
+            break
+    selected_urls = {source["url"] for source in selected}
+    for source in ranked:
+        if len(selected) == limit:
+            break
+        if source["url"] not in selected_urls:
+            selected.append(dict(source, selection="ranked fill after repository diversity"))
+            selected_urls.add(source["url"])
+    for source in selected:
+        source["relevant"] = bool(source["keys"] & current_keys)
+        source["keys"] = sorted(source["keys"])
+        text = " | ".join(sorted(source.pop("excerpts")))
+        source["excerpt"] = text if len(text) <= 500 else text[:497] + "..."
+    return selected, len(sources)
+
+
+def _source_lines(records, signals, now, current_keys):
+    selected, total = select_supporting_sources(records, signals, now, current_keys)
+    lines = [
+        "Current supporting source showcase (separate from frozen historical decision references)",
+        f"Supporting sources shown: {len(selected)} of {total} eligible unique URLs (maximum 5 globally).",
+        "Selection uses exclusively verified public, non-Microsoft/non-excluded-owner sources.",
+        "Source rank: current hypothesis key first; urgency label; recent discussion; updatedAt; URL.",
+        "Urgency (case-insensitive exact labels): p0/critical/blocker > p1/high/urgent >",
+        "p2/medium > p3/low > p4/lowest > unknown; optional 'priority:'/'priority/'",
+        "or 'severity:'/'severity/' prefixes. No urgency inferred from prose or issue score.",
+        "Diversity first: best ranked source per distinct repository, then ranked fills to five.",
+        "Discussion = unique comments created in (now - 7 days, now], among latest 100 fetched;",
+        "edits and future-created comments do not add activity. No author diversity is inferred.",
+        "Comment urgency/activity use their parent issue/PR; source repository is always its own.",
+    ]
+    for source in selected:
+        lines.extend([
+            f"Current source | {source['source']} | repository: {source['repo']} | updated: {source['date']}",
+            "Source title: " + source["title"],
+            source["url"],
+            "Supporting signal keys: " + ", ".join(source["keys"]),
+            f"Selection reason: {source['selection']}; "
+            f"{'matches current hypothesis' if source['relevant'] else 'other supporting hypothesis'}; "
+            f"urgency: {source['urgency_label']}; recent 7-day comments: {source['activity']}.",
+            "Context excerpt: " + source["excerpt"],
+        ])
+    if not selected:
+        lines.append("No eligible supporting sources; showcase left empty, without padding.")
+    for category in ("contradicting", "inconclusive"):
+        matches = [signal for signal in signals if signal["category"] == category]
+        lines.append(f"Other evidence - {category}: {len(matches)} candidate signals across "
+                     f"{len({s['url'] for s in matches})} unique source URLs "
+                     "(all researched sources, including excluded context; not supporting votes).")
+    return lines
+
+
 def evolve(records, now, previous_state, hypotheses, triage):
     """Return a bounded JSON state and current evidence report, without I/O."""
     now = now.astimezone(timezone.utc)
@@ -337,7 +456,7 @@ def evolve(records, now, previous_state, hypotheses, triage):
     for slot in state["slots"]:
         lines.extend([f"{slot['id']} [{slot['key']}] {slot['title']}",
                       f"Decision: {slot['status']} | area: {slot['area']} | streak: {slot['streak']}/3 | frozen fresh repositories: {slot['fresh_repos']}"])
-        lines.append("Frozen decision witnesses (up to 3 distinct eligible supporting repositories):")
+        lines.append("Frozen decision witnesses (historical audit references only, up to 3 per slot; not current showcase):")
         for witness in slot["witnesses"]:
             lines.extend([f"  {witness['repo']} | {witness['source']} | {witness['date']}",
                           "  " + witness["url"]])
@@ -361,8 +480,6 @@ def evolve(records, now, previous_state, hypotheses, triage):
             lines.extend([
                 f"    {key}: eligible supporting repositories={len(group['repos'])}; "
                 f"fresh={len(group['fresh'])}; current >=3 fresh repository threshold: {status}.",
-                "    Supporting repositories: " + (", ".join(sorted(group["repos"])) or "none"),
-                "    Fresh supporting repositories: " + (", ".join(sorted(group["fresh"])) or "none"),
             ])
     lines.extend([
         "Adaptive method and limitations",
@@ -380,19 +497,13 @@ def evolve(records, now, previous_state, hypotheses, triage):
         "ISO weeks freeze decisions, not source dates. Historical sources are discovery only; future dates never count.",
         "Issue/PR updatedAt may reflect unrelated metadata, not a changed claim; comment dates are source-specific.",
         "Only latest 100 comments and most recently updated linked PR are examined.",
-        "Ranking: unique eligible supporting repositories, then unique issue URLs (not comments/PR boosts), then signal id.",
+        "Hypothesis ranking (unchanged by showcase selection): unique eligible supporting repositories,",
+        "then unique issue URLs (not comments/PR boosts), then signal id.",
         "Taxonomy: area + explicit barrier intent; specific DNS/gMSA/Nano intents take precedence.",
         "Negation/resolution/non-barriers are separate contrary/inconclusive evidence, never supporting votes.",
     ])
     lines.append("Signal taxonomy: " + "; ".join(f"{key} = {description}" for key, _, _, description in TAXONOMY))
-    lines.append("Current evidence (separate from frozen weekly decision):")
-    for signal in sorted(signals, key=lambda s: (s["key"], s["repo"], s["url"], s["excerpt"])):
-        lines.extend([
-            f"{signal['key']} | {signal['category']} | repository: {signal['repo']} | "
-            f"{'eligible public' if signal['eligible'] else 'context only / excluded or unverified public'} | "
-            f"{'fresh' if signal['fresh'] else 'historical'} | {signal['date']}",
-            signal["url"], "Context excerpt: " + signal["excerpt"],
-        ])
+    lines.extend(_source_lines(records, signals, now, [slot["key"] for slot in state["slots"]]))
     if not signals:
         lines.append("No relevant evidence; defer without inventing a hypothesis.")
     return state, lines

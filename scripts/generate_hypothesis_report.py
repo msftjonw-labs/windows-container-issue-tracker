@@ -23,6 +23,7 @@ HYPOTHESES = (
 )
 DETAIL_FIELDS = """
   __typename id number title body state updatedAt url
+  labels(first: 100) { nodes { name } }
   comments(last: 100) {
     totalCount
     nodes { body url createdAt updatedAt }
@@ -139,6 +140,11 @@ def validate_details(node, kind, expected_id):
             or not re.fullmatch(r"[\w.-]+/[\w.-]+", repository["nameWithOwner"])
             or type(repository.get("isPrivate")) is not bool):
         raise ValueError(f"Missing or invalid {kind} repository visibility")
+    labels = node.get("labels")
+    if (not isinstance(labels, dict) or not isinstance(labels.get("nodes"), list)
+            or any(not isinstance(label, dict) or not isinstance(label.get("name"), str)
+                   for label in labels["nodes"])):
+        raise ValueError(f"Missing or invalid {kind} labels")
     comments = node.get("comments")
     if not isinstance(comments, dict) or not isinstance(comments.get("nodes"), list):
         raise ValueError(f"Missing {kind} comments")
@@ -276,11 +282,13 @@ def triage(record, hypothesis):
 
 
 def build_report(records, generated_at, source_path, adaptive_lines=()):
+    if not adaptive_lines:
+        _, adaptive_lines = evolve(records, generated_at, None, HYPOTHESES, triage)
     lines = [
         "Windows Container Hypothesis Validation - Evidence Triage",
         f"Generated: {generated_at:%Y-%m-%d %H:%M:%S UTC}",
         f"Scored issue export: {source_path}",
-        f"Selected issues: {len(records)} (all exported qualifying scored issues; no top-ten cap)",
+        f"Total analyzed issues: {len(records)} (all exported qualifying scored issues; no research cap)",
         "",
     ]
     lines.extend(adaptive_lines)
@@ -291,7 +299,7 @@ def build_report(records, generated_at, source_path, adaptive_lines=()):
         "Seed 2: " + HYPOTHESES[1],
         "",
         "Method and limitations",
-        "Fresh issue title/body/state/updatedAt/URL and latest 100 comments; all pages of",
+        "Fresh issue title/body/state/updatedAt/URL, first 100 labels and latest 100 comments; all pages of",
         "cross-referenced and connected timeline events are inspected for actual PR nodes.",
         "Only the most recently updated linked PR is examined (ties: node id), including",
         "its current title/body/state/mergedAt and latest 100 comments. References are not endorsements.",
@@ -307,36 +315,14 @@ def build_report(records, generated_at, source_path, adaptive_lines=()):
         "or resolved-gap phrases can be contradicting candidates; other matches are inconclusive.",
         "Rules can miss paraphrases, sarcasm, code, quotations, historical context and negation;",
         "unrelated Windows needs and topic mentions are not definitive support.",
-        "Excerpts preserve paragraph context up to 1800 characters; truncation is marked.",
+        "Triage retains paragraph context up to 1800 characters; showcase aggregates supporting",
+        "signal keys/excerpts by source URL into at most 500 characters, with truncation marked.",
         "Source dates are last-updated timestamps, not necessarily when a claim was made.",
         "Comments older than the latest 100 and non-selected PR contents are outside scope.",
         "A scored issue sample cannot establish prevalence, causality, community growth,",
         "or represent nonadopters. Activity, scores, open/closed/merged states do not",
         "establish popularity or growth. This report does not determine licensing/free-use truth.",
-        "",
-        "Issue and linked PR appendix (source context, not current hypothesis conclusions)",
     ])
-    for record in records:
-        issue, scored, pr = record["issue"], record["scored"], record["pr"]
-        lines.extend([
-            f"{scored['repo_full_name']} #{issue['number']}: {issue['title']}",
-            f"Priority score: {scored['score']} | State: {issue['state']} | Updated: {issue['updatedAt']}",
-            issue["url"],
-            "Issue body excerpt: " + (excerpt(issue["body"]) or "[empty body]"),
-            f"Issue comments inspected: {len(issue['comments']['nodes'])} of {issue['comments']['totalCount']}",
-            f"Unique linked PRs: {record['reference_count']}",
-        ])
-        if pr is None:
-            lines.append("Latest linked PR: none found in the retrieved timeline references.")
-        else:
-            lines.extend([
-                f"Latest linked PR #{pr['number']}: {pr['title']}",
-                f"State: {pr['state']} | Updated: {pr['updatedAt']} | Merged: {pr['mergedAt'] or 'not merged'}",
-                pr["url"],
-                "PR body excerpt: " + (excerpt(pr["body"]) or "[empty body]"),
-                f"PR comments inspected: {len(pr['comments']['nodes'])} of {pr['comments']['totalCount']}",
-            ])
-        lines.append("")
     lines.extend([
         "Research limitations",
         "Do not interpret candidate counts as prevalence or validation. Review full sources",

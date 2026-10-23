@@ -32,6 +32,7 @@ def details(kind="Issue", index=1, body="Routine maintenance", comments=None):
         "__typename": kind, "id": f"{'I' if kind == 'Issue' else 'P'}{index}",
         "number": index, "title": "Fresh title", "body": body, "state": "OPEN",
         "updatedAt": DATE,
+        "labels": {"nodes": []},
         "repository": {"nameWithOwner": "owner/repo", "isPrivate": False},
         "url": f"https://github.com/owner/repo/{'issues' if kind == 'Issue' else 'pull'}/{index}",
         "comments": {"totalCount": len(comments or []), "nodes": comments or []},
@@ -132,6 +133,8 @@ class SelectionAndFetchingTests(unittest.TestCase):
         self.assertEqual(query.call_count, 3)
         self.assertIn("comments(last: 100)", report.ISSUE_QUERY)
         self.assertIn("comments(last: 100)", report.PR_QUERY)
+        self.assertIn("labels(first: 100) { nodes { name } }", report.ISSUE_QUERY)
+        self.assertIn("labels(first: 100) { nodes { name } }", report.PR_QUERY)
         self.assertIn("mergedAt", report.PR_QUERY)
 
     def test_pr_state_and_merge_timestamp_are_preserved(self):
@@ -188,7 +191,7 @@ class SelectionAndFetchingTests(unittest.TestCase):
         with patch.object(report, "run_graphql", side_effect=RuntimeError("rate budget")):
             with self.assertRaisesRegex(RuntimeError, "rate budget"):
                 report.collect_issue(scored())
-        for field in ("body", "state", "comments", "updatedAt", "url"):
+        for field in ("body", "state", "comments", "updatedAt", "url", "labels"):
             issue = details()
             del issue[field]
             with self.subTest(field=field):
@@ -237,12 +240,13 @@ class SelectionAndFetchingTests(unittest.TestCase):
 
 
 class EvidenceTests(unittest.TestCase):
-    def test_no_evidence_and_no_linked_pr_still_appear(self):
+    def test_no_support_leaves_showcase_empty_without_issue_appendix(self):
         lines = "\n".join(report.build_report(
             [record()], datetime(2026, 10, 23, tzinfo=timezone.utc), "export.json"
         ))
-        self.assertIn("owner/repo #1: Fresh title", lines)
-        self.assertIn("Latest linked PR: none found", lines)
+        self.assertIn("Supporting sources shown: 0 of 0", lines)
+        self.assertNotIn("Fresh title", lines)
+        self.assertNotIn("appendix", lines)
         self.assertIn("Original seed hypotheses (historical reference only)", lines)
         for hypothesis in report.HYPOTHESES:
             self.assertIn(hypothesis, lines)
@@ -340,11 +344,13 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual([s["source"] for s in signals],
                          ["Latest linked PR title/body", "Latest linked PR comment"])
         lines = "\n".join(report.build_report(
-            [item], datetime(2026, 10, 23, tzinfo=timezone.utc), "export.json"
+            [item], datetime(2026, 10, 23, 12, tzinfo=timezone.utc), "export.json"
         ))
-        for text in ("Latest linked PR #1", "PR body excerpt:", "Merged: not merged",
-                     pr["url"], "PR comments inspected: 1 of 1", DATE):
+        for text in ("Current source | pull_request", "Supporting sources shown: 1 of 1",
+                     pr["url"], "contradicting: 2 candidate signals", DATE):
             self.assertIn(text, lines)
+        self.assertNotIn("Nano Server tests pass.", lines)
+        self.assertEqual(lines.count("Context excerpt:"), 1)
 
     def test_long_context_truncation_is_marked_without_hiding_negation_from_rule(self):
         body = "Windows containers development licensing cost community adoption barrier " + "x " * 2000 + "not relevant."
@@ -384,7 +390,7 @@ class PathRenderingAndErrorsTests(unittest.TestCase):
              patch.object(Path, "mkdir"), patch.object(report, "_write_pdf") as writer:
             report.generate_report()
         lines = "\n".join(writer.call_args.args[0])
-        self.assertIn("Selected issues: 0", lines)
+        self.assertIn("Total analyzed issues: 0", lines)
         self.assertIn("Decision: deferred", lines)
 
     def test_failures_do_not_write_a_report_and_cli_exits_nonzero(self):
@@ -415,7 +421,7 @@ class PathRenderingAndErrorsTests(unittest.TestCase):
         item = record(body="Nano Server missing testing APIs. (Unicode: \u2014 \u00e9)")
         item["issue"]["title"] = r"Fresh (title) \ detail"
         lines = report.build_report([copy.deepcopy(item)] * 3,
-                                    datetime(2026, 10, 23, tzinfo=timezone.utc), "export.json")
+                                    datetime(2026, 10, 23, 12, tzinfo=timezone.utc), "export.json")
         output = Mock(spec=Path)
         report._write_pdf(lines, output)
         payload = output.write_bytes.call_args.args[0]

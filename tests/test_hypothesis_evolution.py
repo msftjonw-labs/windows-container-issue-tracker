@@ -121,7 +121,8 @@ class WeeklyEvolutionTests(unittest.TestCase):
         self.assertIn("networking:dns: eligible supporting repositories=2; fresh=2", text)
         self.assertIn("networking:connectivity: eligible supporting repositories=2; fresh=2", text)
         self.assertEqual(text.count("current >=3 fresh repository threshold: NOT MET"), 2)
-        self.assertIn("Supporting repositories: community/repo0, community/repo1", text)
+        self.assertNotIn("Supporting repositories:", text)
+        self.assertNotIn("Fresh supporting repositories:", text)
         self.assertIn("area: networking", text)
         self.assertTrue(all(s["status"] == "provisional" for s in state["slots"]))
 
@@ -392,8 +393,215 @@ class WeeklyEvolutionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             evolution.validate_state(bad)
 
+class SourceShowcaseTests(unittest.TestCase):
+    def select(self, data, keys=("networking:dns",)):
+        signals = evolution._signals(data, NOW, report.triage, NOW - timedelta(days=7))
+        return evolution.select_supporting_sources(data, signals, NOW, keys)
+
+    def duplicate(self, item, number):
+        item = copy.deepcopy(item)
+        item["issue"]["url"] = item["issue"]["url"].rsplit("/", 1)[0] + f"/{number}"
+        return item
+
+    def labels(self, item, *names):
+        item["issue"]["labels"] = {"nodes": [{"name": name} for name in names]}
+
+    def comments(self, item, dates):
+        item["issue"]["comments"]["nodes"] = [
+            dict(body="Routine discussion", url=item["issue"]["url"] + f"#issuecomment-{i}",
+                 createdAt=created, updatedAt=NOW.isoformat())
+            for i, created in enumerate(dates)
+        ]
+
+    def test_more_than_five_supporting_sources_and_five_repository_diversity(self):
+        data = records(6)
+        extras = [self.duplicate(data[0], i + 2) for i in range(4)]
+        for item in extras:
+            self.labels(item, "p0")
+        selected, total = self.select(data + extras)
+        self.assertEqual(total, 10)
+        self.assertEqual(len(selected), 5)
+        self.assertEqual(len({s["repo"] for s in selected}), 5)
+        self.assertEqual(selected[0]["url"], extras[0]["issue"]["url"])
+        self.assertEqual(sum(s["repo"] == "community/repo0" for s in selected), 1)
+        self.assertEqual(self.select(list(reversed(data + extras))), (selected, total))
+
+    def test_repository_scarcity_fills_remaining_slots_in_rank_order(self):
+        data = records(1)
+        data += [self.duplicate(data[0], i) for i in range(2, 8)]
+        self.labels(data[3], "critical")
+        selected, total = self.select(data)
+        self.assertEqual((len(selected), total), (5, 7))
+        self.assertEqual(selected[0]["url"], data[3]["issue"]["url"])
+        self.assertEqual(len({s["repo"] for s in selected}), 1)
+        self.assertTrue(all("ranked fill" in s["selection"] for s in selected[1:]))
+        self.assertEqual(self.select(data[::-1]), (selected, total))
+
+    def test_shared_pr_and_comment_deduplicated_across_issues_and_signal_areas(self):
+        data = records(3, body="Routine maintenance", owner="Microsoft")
+        pr = records(1, body="Windows containers DNS resolution fails and authentication fails.")[0]["issue"]
+        pr["url"] = "https://github.com/community/repo0/pull/7"
+        pr["comments"]["nodes"] = [
+            dict(body="Windows containers DNS resolution fails and tooling build fails.",
+                 url=pr["url"] + "#issuecomment-7",
+                 createdAt=NOW.isoformat(), updatedAt=NOW.isoformat())
+        ]
+        pr["labels"] = {"nodes": [{"name": "priority: P1"}]}
+        for item in data:
+            item["pr"] = copy.deepcopy(pr)
+        selected, total = self.select(data)
+        self.assertEqual((len(selected), total), (2, 2))
+        self.assertEqual({s["repo"] for s in selected}, {"community/repo0"})
+        self.assertEqual({s["source"] for s in selected}, {"pull_request", "pull_request_comment"})
+        self.assertTrue(all(len(s["keys"]) >= 2 for s in selected))
+        self.assertTrue(all(s["urgency"] == 1 and s["activity"] == 1 for s in selected))
+        _, lines = evolve(data)
+        text = "\n".join(lines)
+        self.assertEqual(text.count("Current source |"), 2)
+        self.assertEqual(text.count("Context excerpt:"), 2)
+        self.assertIn("repository: community/repo0", text)
+        self.assertNotIn("repository: microsoft/", text)
+
+    def test_only_eligible_support_not_contrary_inconclusive_or_unknown_public(self):
+        data = records(1)
+        data += records(1, owner="contrary", body="Windows containers DNS is resolved.")
+        data += records(1, owner="uncertain", body="Windows containers DNS networking.")
+        data += records(1, owner="Microsoft")
+        data += records(1, owner="private", private=True)
+        data += records(1, owner="unknown", private=None)
+        selected, total = self.select(data)
+        self.assertEqual((len(selected), total), (1, 1))
+        self.assertEqual(selected[0]["repo"], "community/repo0")
+        _, lines = evolve(data)
+        text = "\n".join(lines)
+        self.assertIn("Other evidence - contradicting: 1 candidate signals", text)
+        self.assertIn("Other evidence - inconclusive: 1 candidate signals", text)
+        self.assertNotIn("DNS is resolved.", text)
+        self.assertNotIn("DNS networking.", text)
+
+    def test_explicit_urgency_labels_case_insensitive_unknown_last_no_prose_guessing(self):
+        labels = ["p4", "Priority/P2", "SeVerItY: CRITICAL", "P1", "p3", "unrecognized"]
+        data = records(len(labels))
+        for item, label in zip(data, labels):
+            self.labels(item, label)
+        data[-1]["issue"]["title"] = "URGENT CRITICAL P0 Windows containers"
+        selected, _ = self.select(data)
+        self.assertEqual([s["urgency"] for s in selected], [0, 1, 2, 3, 4])
+        self.assertNotIn(data[-1]["issue"]["url"], [s["url"] for s in selected])
+        for label, expected in evolution.URGENCY.items():
+            with self.subTest(label=label):
+                self.labels(data[0], label.upper())
+                self.assertEqual(self.select(data[:1])[0][0]["urgency"], expected)
+
+    def test_current_hypothesis_keys_precede_other_supporting_topics(self):
+        data = records(5) + records(1, owner="other", body="Windows containers authentication fails.")
+        self.labels(data[-1], "p0")
+        self.assertEqual(self.select(data)[0][0]["repo"], "community/repo0")
+        selected, _ = self.select(data, ("identity:authentication",))
+        self.assertEqual(selected[0]["repo"], "other/repo0")
+        self.assertTrue(selected[0]["relevant"])
+
+    def test_recent_created_activity_breaks_urgency_ties_not_edits_or_future(self):
+        data = records(4)
+        self.comments(data[0], [NOW.isoformat()])
+        self.comments(data[1], [NOW.isoformat(), (NOW - timedelta(days=1)).isoformat()])
+        self.comments(data[2], [(NOW - timedelta(days=30)).isoformat()] * 10)
+        self.comments(data[3], [(NOW + timedelta(seconds=1)).isoformat()] * 20)
+        selected, _ = self.select(data)
+        self.assertEqual([s["activity"] for s in selected], [2, 1, 0, 0])
+        self.assertEqual([s["repo"] for s in selected],
+                         ["community/repo1", "community/repo0", "community/repo2", "community/repo3"])
+        self.comments(data[0], [(NOW - timedelta(days=7)).isoformat()])
+        self.assertEqual(self.select(data[:1])[0][0]["activity"], 0)
+
+    def test_duplicate_comment_url_does_not_inflate_discussion(self):
+        data = records(1)
+        self.comments(data[0], [NOW.isoformat()])
+        data[0]["issue"]["comments"]["nodes"] *= 5
+        self.assertEqual(self.select(data)[0][0]["activity"], 1)
+
+    def test_update_recency_then_url_are_stable_tiebreaks_future_source_excluded(self):
+        data = records(4)
+        data[0]["issue"]["updatedAt"] = (NOW - timedelta(days=1)).isoformat()
+        data[3]["issue"]["updatedAt"] = (NOW + timedelta(seconds=1)).isoformat()
+        selected, total = self.select(data[::-1])
+        self.assertEqual(total, 3)
+        self.assertEqual([s["repo"] for s in selected],
+                         ["community/repo1", "community/repo2", "community/repo0"])
+        self.assertEqual(self.select(data), (selected, total))
+
+    def test_aggregates_supporting_keys_and_limits_excerpt_without_body_duplication(self):
+        body = "Windows containers DNS fails and authentication fails. " + "context " * 150
+        data = records(1, body=body)
+        data[0]["issue"]["body"] += "\n\nWindows containers tooling build fails."
+        selected, total = self.select(data)
+        self.assertEqual(total, 1)
+        self.assertEqual(selected[0]["keys"],
+                         ["identity:authentication", "networking:dns", "tooling:build"])
+        self.assertLessEqual(len(selected[0]["excerpt"]), 500)
+        self.assertTrue(selected[0]["excerpt"].endswith("..."))
+        _, lines = evolve(data)
+        self.assertEqual("\n".join(lines).count("Context excerpt:"), 1)
+        self.assertNotIn(body, "\n".join(lines))
+
+    def test_unshown_evidence_still_qualifies_and_display_never_changes_state(self):
+        data = records(6) + records(3, owner="other", body="Windows containers authentication fails.")
+        for item in data[:6]:
+            self.labels(item, "p0")
+        state, lines = evolve(data)
+        self.assertEqual([s["fresh_repos"] for s in state["slots"]], [6, 3])
+        self.assertEqual([s["status"] for s in state["slots"]], ["qualifying", "qualifying"])
+        selected, total = self.select(data, (s["key"] for s in state["slots"]))
+        self.assertEqual(total, 9)
+        self.assertFalse(any(s["repo"].startswith("other/") for s in selected))
+        self.assertEqual("\n".join(lines).count("Current source |"), 5)
+        with patch.object(evolution, "_source_lines", return_value=[]):
+            unrendered, _ = evolve(data)
+        self.assertEqual(state, unrendered)
+        selector = evolution.select_supporting_sources
+        with patch.object(evolution, "select_supporting_sources", side_effect=lambda *args: selector(*args, limit=1)):
+            one_source_state, one_source_lines = evolve(data)
+        self.assertEqual(state, one_source_state)
+        self.assertEqual("\n".join(one_source_lines).count("Current source |"), 1)
+        next_week = NOW + timedelta(weeks=1)
+        next_data = records(6, now=next_week) + records(
+            3, owner="other", now=next_week, body="Windows containers authentication fails.")
+        expected, _ = evolve(next_data, next_week, state)
+        with patch.object(evolution, "_source_lines", return_value=[]):
+            actual, _ = evolve(next_data, next_week, unrendered)
+        self.assertEqual(expected, actual)
+        with patch.object(evolution, "select_supporting_sources", side_effect=lambda *args: selector(*args, limit=1)):
+            actual, _ = evolve(next_data, next_week, one_source_state)
+        self.assertEqual(expected, actual)
+
+    def test_no_support_never_pads_showcase(self):
+        for data in ([], records(3, body="Windows containers DNS is resolved."), records(owner="Azure")):
+            with self.subTest(data=data):
+                self.assertEqual(self.select(data), ([], 0))
+                _, lines = evolve(data)
+                text = "\n".join(lines)
+                self.assertIn("Supporting sources shown: 0 of 0", text)
+                self.assertNotIn("Current source |", text)
+
+    def test_423_analyzed_issues_have_only_five_current_details_no_appendix(self):
+        data = records(423)
+        state, adaptive = evolve(data)
+        text = "\n".join(report.build_report(data, NOW, "export.json", adaptive))
+        self.assertIn("Total analyzed issues: 423", text)
+        self.assertIn("Supporting sources shown: 5 of 423", text)
+        self.assertEqual(text.count("Current source |"), 5)
+        self.assertEqual(text.count("Context excerpt:"), 5)
+        self.assertNotIn("appendix", text)
+        self.assertNotIn("Issue body excerpt", text)
+        self.assertNotIn("Supporting repositories:", text)
+        self.assertNotIn("community/repo422", text)
+        self.assertEqual(state["slots"][0]["fresh_repos"], 423)
+        self.assertEqual(len(state["slots"][0]["witnesses"]), 3)
+        self.assertIn("historical audit references only", text)
+
+
 class PersistenceBoundaryTests(unittest.TestCase):
-    def test_authoritative_completed_decision_and_areas_precede_seed_reference_and_appendix(self):
+    def test_authoritative_completed_decision_and_areas_precede_seed_reference_no_appendix(self):
         state = None
         for week in range(3):
             now = NOW + timedelta(weeks=week)
@@ -408,7 +616,7 @@ class PersistenceBoundaryTests(unittest.TestCase):
         self.assertLess(text.index("Decision: completed"), text.index("Researched areas"))
         self.assertLess(text.index("Researched areas"), text.index("Adaptive method and limitations"))
         self.assertLess(text.index("Researched areas"), text.index("Original seed hypotheses"))
-        self.assertLess(text.index("Original seed hypotheses"), text.index("Issue and linked PR appendix"))
+        self.assertNotIn("Issue and linked PR appendix", text)
         self.assertNotIn("insufficient evidence", text)
         self.assertNotIn("Hypothesis 1 candidate signals", text)
 

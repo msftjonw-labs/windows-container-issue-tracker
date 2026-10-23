@@ -15,7 +15,8 @@ Each run now performs three actions in order:
    items or top three digest entries, to `scoring-output/scored-issues.json`.
 2. Re-fetch those issues and review their current descriptions, latest comments,
    and latest updated linked pull request. Evolve hypotheses from the observed
-   signals, track their weekly qualification, and generate
+   signals, track their weekly qualification, and present at most **five
+   supporting data sources** in
    `report-history/windows-container-hypothesis-validation-yyyy-mm-dd.pdf`
    using the UTC generation date.
 3. Send email with the separate scoring and report-generation statuses, the
@@ -44,10 +45,43 @@ before accepting or rejecting either hypothesis.
 
 The report states the **latest hypotheses**, the current research/validation
 areas (such as networking, identity, image compatibility, and tooling), decisions
-to revise or retain them, and supporting and contrary evidence. Evidence includes
+to revise or retain them, and a concise supporting-evidence shortlist with
+contrary/inconclusive signal summaries. Evidence includes
 the actual public repository, issue/PR/comment URL, source update date, and a
 context excerpt. Area labels and recurring signals are research indicators, not
 proof that a product area or causal claim has been scientifically validated.
+
+### Top-five supporting sources
+
+The PDF no longer includes an appendix of every analyzed issue or every detected
+signal. It presents at most **five unique supporting source URLs**, preferring
+different eligible public repositories. An issue, PR, or individual comment can
+be a source; repeated references to the same URL or multiple signal matches
+cannot consume multiple shortlist positions. If fewer than five supporting
+sources exist, show fewer rather than pad with unrelated issues.
+
+Selection considers eligible public, non-excluded repositories only. Within the
+diversity policy, sources matching current hypothesis keys rank first, followed by
+explicit urgency labels, recent discussion activity, source recency, and URL for
+stable ties—not repository score boosts. Urgency is ordered as
+`p0/critical/blocker`, `p1/high/urgent`, `p2/medium`, `p3/low`, `p4/lowest`, then
+unknown. Labels are case-insensitive and may use `priority:`/`priority/` or
+`severity:`/`severity/` prefixes. Comment sources inherit their parent issue/PR's
+urgency and activity.
+
+Discussion activity counts unique comments **created** in the preceding seven
+days among the latest 100 fetched; edits and future-dated comments do not add
+activity. Each selected source states its signals, repository,
+URL, contextual excerpt, and ranking metadata so the selection can be audited.
+The best source from each repository is selected first, then any remaining
+positions are filled by ranked sources from already represented repositories.
+
+The shortlist is a **presentation limit**, not a five-issue limit on research.
+Full scored data is still fetched and evaluated so the three-repository and
+three-week lifecycle rules remain unchanged. The report distinguishes total
+analyzed issues from displayed sources. Frozen decision witness citations remain
+as compact historical references, separate from the five current supporting
+sources; they preserve the basis of earlier weekly decisions.
 
 The lifecycle uses UTC calendar weeks, starting Monday:
 
@@ -106,8 +140,8 @@ Workflow concurrency serializes updates. A failed save fails action 2 and the
 email reports that failure; retrying must not manufacture another weekly result.
 The managed state issue must remain discoverable (closed issues are supported).
 
-Each scored issue appears even when no relevant evidence or linked PR exists.
-The report reads the latest 100 comments, not the complete discussion history.
+All scored issues are analyzed, but only selected supporting sources are listed.
+Research reads the latest 100 comments, not the complete discussion history.
 PR discovery uses issue timeline references/connections and selects the latest
 by PR update time; unlinked work and plain-text references absent from those
 events are outside this discovery scope. Fetch failures fail action 2 rather than
