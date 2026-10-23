@@ -6,6 +6,47 @@ GitHub Actions workflow also publishes a weekly digest issue in this repository.
 Runs can be started manually from the Actions tab; manual runs update the
 Project v2 board but do not publish a digest issue.
 
+## Rate-aware Project refresh
+
+The refresh collects and scores every configured repository before changing
+the Project. It skips pull requests and issues whose total comment count is
+below the activity threshold, then fetches details in batches of up to ten
+issues instead of one request per issue. Label rules, lookback windows, scoring
+weights, the last-100-comments sample, top ten Project issues per repository,
+and top three digest entries per repository are unchanged.
+
+The Project is no longer cleared at the start of a run. A paginated snapshot
+allows existing items to be reused and unchanged fields to be skipped. Changed
+score and Source fields share one mutation request. Missing issues are added
+before any stale items are removed. Collection or update failures stop the run
+and prevent stale-item cleanup and digest publication; existing board data is
+retained, although updates already applied are not rolled back. Cleanup itself
+can also stop partway through, leaving extra stale items rather than removing
+the newly selected issues.
+
+An issue is eligible for stale-item cleanup only when it belongs to a monitored
+repository and its **Source** field matches that repository's full name. This
+field acts as the management marker. Draft items, unrelated repositories, and
+items without that marker are preserved. Issues selected by the refresh receive
+the Source marker, including previously unmarked items already on the board.
+
+REST and GraphQL share a serial, rate-aware client with separate primary-limit
+budgets, 30-second request timeouts, and at least one second between mutation
+requests. Low remaining budgets pause until reset; rate-limit responses honor
+`Retry-After` or use increasing waits. Requests have at most three attempts,
+and rate-limit/transient waits have a cumulative 15-minute budget per run.
+Permission errors are not retried, and ambiguous REST writes or partial
+GraphQL mutation failures are not blindly replayed. Overlapping scheduled and
+manual workflows queue rather than cancel the active refresh.
+
+GitHub limits can still be reached, particularly when another process shares
+the same App quota. If recovery exceeds the wait budget, the run fails visibly
+instead of treating a failed fetch as an empty repository. Retry after the
+quota resets; the next run reconciles any partially applied updates.
+
+Run the mocked regression suite without live credentials:
+`GITHUB_APP_TOKEN=test-only-placeholder python3 -m unittest discover -s tests -v`.
+
 ## Weekly run email notifications
 
 The workflow runs every Monday at 17:00 UTC. A separate email job depends on
