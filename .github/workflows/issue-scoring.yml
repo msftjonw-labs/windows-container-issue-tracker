@@ -6,10 +6,10 @@ on:
   workflow_dispatch:
     inputs:
       send_email:
-        description: "Send an email after issue scoring succeeds"
+        description: "Send scoring and hypothesis report status with available PDFs"
         type: boolean
         required: false
-        default: false
+        default: true
 
 permissions:
   contents: read
@@ -21,6 +21,12 @@ concurrency:
 jobs:
   score-issues:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    outputs:
+      scoring_status: ${{ steps.scoring.outcome }}
+      report_status: ${{ steps.hypothesis.outcome }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -33,6 +39,12 @@ jobs:
       - name: Install Dependencies
         run: pip install requests
 
+      - name: Clear historical files from this run's artifact inputs
+        run: |
+          rm -f snapshot-history/windows-container-issue-snapshot-*.pdf
+          rm -f report-history/windows-container-hypothesis-validation-*.pdf
+          rm -f scoring-output/scored-issues.json
+
       # Generates a dynamic token for msftjonw-labs organization and public repo reads
       - name: Generate GitHub App Token
         id: generate-app-token
@@ -43,6 +55,7 @@ jobs:
           owner: ${{ github.repository_owner }}
 
       - name: Run Scoring Script
+        id: scoring
         env:
           # Single App Token used for both public repository queries and Project v2 updates
           GITHUB_APP_TOKEN: ${{ steps.generate-app-token.outputs.token }}
@@ -83,16 +96,33 @@ jobs:
             Azure/AKS
         run: python scripts/calculate_scores.py
 
+      - name: Generate hypothesis validation report
+        id: hypothesis
+        env:
+          GITHUB_APP_TOKEN: ${{ steps.generate-app-token.outputs.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+          HYPOTHESIS_EXCLUDED_OWNERS: ${{ vars.HYPOTHESIS_EXCLUDED_OWNERS }}
+        run: python scripts/hypothesis_state.py
+
       - name: Upload issue snapshot
+        if: ${{ always() && steps.scoring.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
-          name: issue-snapshot-${{ github.run_id }}
+          name: issue-snapshot-${{ github.run_id }}-${{ github.run_attempt }}
           path: snapshot-history/*.pdf
+          if-no-files-found: error
+
+      - name: Upload hypothesis report
+        if: ${{ always() && steps.hypothesis.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: hypothesis-report-${{ github.run_id }}-${{ github.run_attempt }}
+          path: report-history/*.pdf
           if-no-files-found: error
 
   email-weekly-status:
     needs: score-issues
-    if: ${{ needs.score-issues.result == 'success' && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.send_email)) }}
+    if: ${{ always() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.send_email)) }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -104,20 +134,30 @@ jobs:
           python-version: "3.11"
 
       - name: Download issue snapshot
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
-          name: issue-snapshot-${{ github.run_id }}
-          path: snapshot-history
+          name: issue-snapshot-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/snapshot-${{ github.run_id }}-${{ github.run_attempt }}
 
-      - name: Email successful run status
+      - name: Download hypothesis report
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: hypothesis-report-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/report-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Email scoring and report status
         env:
           SMTP_HOST: ${{ vars.SMTP_HOST }}
           SMTP_USERNAME: ${{ vars.SMTP_USERNAME }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           SMTP_FROM: ${{ vars.SMTP_FROM }}
           WEEKLY_EMAIL_RECIPIENTS: ${{ vars.WEEKLY_EMAIL_RECIPIENTS }}
-          RUN_STATUS: ${{ needs.score-issues.result }}
+          RUN_STATUS: ${{ needs.score-issues.outputs.scoring_status || needs.score-issues.result }}
+          REPORT_STATUS: ${{ needs.score-issues.outputs.report_status || 'skipped' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           PROJECT_URL: https://github.com/orgs/msftjonw-labs/projects/1
-          SNAPSHOT_DIRECTORY: snapshot-history
+          SNAPSHOT_DIRECTORY: ${{ runner.temp }}/snapshot-${{ github.run_id }}-${{ github.run_attempt }}
+          REPORT_DIRECTORY: ${{ runner.temp }}/report-${{ github.run_id }}-${{ github.run_attempt }}
         run: python3 scripts/notify_run_status.py
