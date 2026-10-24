@@ -503,9 +503,9 @@ def _report_pdf_sections(lines):
             )
     if current_items or current_started:
         detail_groups.append((current_title, current_items))
-    for section_number, (title, items) in enumerate(detail_groups, start=1):
+    for title, items in detail_groups:
         sections.extend([
-            {"type": "heading", "title": f"Section {section_number}: {title}"},
+            {"type": "heading", "title": title},
             {"type": "bullets", "items": items},
         ])
     return sections

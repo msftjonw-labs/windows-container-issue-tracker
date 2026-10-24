@@ -519,18 +519,19 @@ class PathRenderingAndErrorsTests(unittest.TestCase):
         ]
         self.assertIn("Additional report details", detail_headings)
         self.assertIn(
-            "Section 1: Adaptive weekly hypotheses (authoritative latest decisions)",
+            "Adaptive weekly hypotheses (authoritative latest decisions)",
             detail_headings,
         )
         self.assertIn(
-            "Section 2: Researched areas (current evidence, not validated scientific findings)",
+            "Researched areas (current evidence, not validated scientific findings)",
             detail_headings,
         )
-        self.assertIn("Section 3: Adaptive method and limitations", detail_headings)
+        self.assertIn("Adaptive method and limitations", detail_headings)
         self.assertIn(
-            "Section 4: Current supporting source showcase (separate from frozen historical decision references)",
+            "Current supporting source showcase (separate from frozen historical decision references)",
             detail_headings,
         )
+        self.assertFalse(any(title.startswith("Section ") for title in detail_headings))
 
         output = Mock(spec=Path)
         report._write_pdf([], output, document_sections=sections)
