@@ -387,9 +387,11 @@ class PathRenderingAndErrorsTests(unittest.TestCase):
         sections = writer.call_args.kwargs["document_sections"]
         self.assertEqual(sections[0]["type"], "bullets")
         self.assertTrue(any(item.startswith("Observation week:") for item in sections[0]["items"]))
-        self.assertTrue(any(item.startswith("H1:") and "Decision:" in item
+        self.assertTrue(any(item.startswith("Hypothesis 1:") and "Decision:" in item
                             for item in sections[0]["items"]))
-        self.assertTrue(any(section.get("title") == "H1 supporting evidence"
+        self.assertTrue(any(section.get("title") == "Hypothesis 1 Supporting evidence"
+                            for section in sections))
+        self.assertTrue(any(section.get("title") == "Hypothesis 2 Supporting evidence"
                             for section in sections))
 
     def test_empty_export_explicit_zero_sample_not_validation(self):
@@ -472,6 +474,8 @@ class PathRenderingAndErrorsTests(unittest.TestCase):
             "H2 [security:gmsa] Windows gMSA hypothesis",
             "Decision: provisional | area: security | streak: 0/3",
             "Researched areas (current evidence)",
+            "Adaptive method and limitations",
+            "Qualifying requires three fresh repositories.",
             "Current supporting source showcase",
             "Supporting sources shown: 1 of 1 eligible unique URLs.",
             "Current source | issue | repository: example/repo | updated: 2026-10-22",
@@ -488,27 +492,52 @@ class PathRenderingAndErrorsTests(unittest.TestCase):
         self.assertEqual(bullets[:3], lines[:3])
         self.assertIn("Observation week: 2026-W43 | frozen.", bullets)
         self.assertIn(
-            "H1: Windows DNS hypothesis; Decision: qualifying | area: networking | streak: 1/3",
+            "Hypothesis 1: Windows DNS hypothesis; Decision: qualifying | area: networking | streak: 1/3",
             bullets,
         )
         self.assertIn(
-            "H2: Windows gMSA hypothesis; Decision: provisional | area: security | streak: 0/3",
+            "Hypothesis 2: Windows gMSA hypothesis; Decision: provisional | area: security | streak: 0/3",
             bullets,
         )
-        h1_table = next(section for section in sections if section.get("title") == "H1 supporting evidence")
-        h2_table = next(section for section in sections if section.get("title") == "H2 supporting evidence")
+        h1_table = next(section for section in sections if section.get("title") == "Hypothesis 1 Supporting evidence")
+        h2_table = next(section for section in sections if section.get("title") == "Hypothesis 2 Supporting evidence")
         self.assertEqual(h1_table["rows"][1][0], "example/repo")
         self.assertIn("Windows container DNS resolution fails.", h1_table["rows"][1][2])
         self.assertEqual(len(h2_table["rows"]), 2)
-        details = "\n".join(" ".join(row) for row in sections[-1]["rows"])
+        details = "\n".join(
+            item
+            for section in sections
+            if section["type"] == "bullets"
+            for item in section["items"]
+        )
         self.assertIn("Other evidence - contradicting", details)
+        self.assertIn("Hypothesis 1 [networking:dns] Windows DNS hypothesis", details)
+        self.assertIn("Hypothesis 2 [security:gmsa] Windows gMSA hypothesis", details)
         self.assertNotIn("https://github.com/example/repo/issues/1", details)
+        detail_headings = [
+            section["title"] for section in sections if section["type"] == "heading"
+        ]
+        self.assertIn("Additional report details", detail_headings)
+        self.assertIn(
+            "Section 1: Adaptive weekly hypotheses (authoritative latest decisions)",
+            detail_headings,
+        )
+        self.assertIn(
+            "Section 2: Researched areas (current evidence, not validated scientific findings)",
+            detail_headings,
+        )
+        self.assertIn("Section 3: Adaptive method and limitations", detail_headings)
+        self.assertIn(
+            "Section 4: Current supporting source showcase (separate from frozen historical decision references)",
+            detail_headings,
+        )
 
         output = Mock(spec=Path)
         report._write_pdf([], output, document_sections=sections)
         payload = output.write_bytes.call_args.args[0]
         self.assertTrue(payload.startswith(b"%PDF-1.4"))
-        self.assertIn(b"(H1 supporting evidence)", payload)
+        self.assertIn(b"(Hypothesis 1 Supporting evidence)", payload)
+        self.assertIn(b"Hypothesis 1 [networking:dns] Windows DNS hypothesis", payload)
         self.assertIn(b"Windows DNS hypothesis", payload)
         self.assertIn(b"Repository", payload)
         self.assertTrue(payload.endswith(b"%%EOF\n"))

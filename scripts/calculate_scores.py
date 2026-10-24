@@ -656,6 +656,16 @@ def _write_document_pdf(sections, output_path, page_size=(842, 595), margin=36):
                 )
             cursor_y -= row_height
 
+    def draw_heading(title):
+        nonlocal cursor_y
+        if cursor_y - 24 < bottom:
+            save_page()
+        commands.append(
+            f"BT /F1 12 Tf {margin} {cursor_y - 14} Td "
+            f"({_escape_pdf_text(title)}) Tj ET"
+        )
+        cursor_y -= 24
+
     def draw_table(title, rows, widths):
         nonlocal cursor_y
         if not rows or not widths or sum(widths) + 2 * margin > page_width:
@@ -712,7 +722,9 @@ def _write_document_pdf(sections, output_path, page_size=(842, 595), margin=36):
         cursor_y -= 14
 
     for section in sections:
-        if section["type"] == "bullets":
+        if section["type"] == "heading":
+            draw_heading(section["title"])
+        elif section["type"] == "bullets":
             draw_bullets(section["items"])
         elif section["type"] == "table":
             draw_table(section["title"], section["rows"], section["widths"])
@@ -861,16 +873,8 @@ def write_project_snapshot(project_id, items=None, output_directory=None, genera
     project_url = f"https://github.com/orgs/{ORGANIZATION_NAME}/projects/{PROJECT_NUMBER}"
     lines = [
         "Windows Container Issue Snapshot",
-        f"Generated: {generated_at:%Y-%m-%d %H:%M:%S UTC}",
-        f"ProjectV2: {project_url}",
-        f"Items: {len(items)}",
-        "",
     ]
     table_rows = [
-        ("Windows Container Issue Snapshot", "", "", "", ""),
-        ("Generated", "", f"{generated_at:%Y-%m-%d %H:%M:%S UTC}", "", ""),
-        ("ProjectV2", "", project_url, "", ""),
-        ("Items", "", str(len(items)), "", ""),
         ("Repository", "Issue", "Title", "Priority score", "URL"),
     ]
     for item in items:
@@ -894,9 +898,16 @@ def write_project_snapshot(project_id, items=None, output_directory=None, genera
         f"windows-container-issue-snapshot-{generated_at:%Y-%m-%d}.pdf"
     )
     _write_pdf(
-        lines, output_path, table_rows=table_rows,
-        column_widths=(110, 55, 260, 85, 260), page_size=(842, 595), margin=36,
-        header_row_index=4,
+        lines, output_path, document_sections=[
+            {"type": "heading", "title": lines[0]},
+            {"type": "bullets", "items": [
+                f"Generated: {generated_at:%Y-%m-%d %H:%M:%S UTC}",
+                f"ProjectV2: {project_url}",
+                f"Items: {len(items)}",
+            ]},
+            {"type": "table", "title": "Project items", "rows": table_rows,
+             "widths": (110, 55, 260, 85, 260)},
+        ],
     )
     print(f"Project snapshot generated: {output_path}")
     return output_path

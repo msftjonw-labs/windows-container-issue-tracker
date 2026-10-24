@@ -381,17 +381,16 @@ def _report_pdf_sections(lines):
     omitted = {0, 1}
     omitted.update(
         index for index, line in enumerate(lines)
-        if line.startswith(("Total analyzed issues:", "Observation week:"))
+        if line.startswith("Total analyzed issues:")
     )
     evidence = {}
     for hypothesis_id in ("H1", "H2"):
         hypothesis = hypotheses.get(hypothesis_id)
         if hypothesis:
             summary.append(
-                f"{hypothesis_id}: {hypothesis['title']}; Decision: {hypothesis['decision']}"
+                f"Hypothesis {hypothesis_id[-1]}: {hypothesis['title']}; "
+                f"Decision: {hypothesis['decision']}"
             )
-            omitted.add(hypothesis["title_index"])
-            omitted.add(hypothesis["title_index"] + 1)
         evidence[hypothesis_id] = []
 
     sources = []
@@ -457,18 +456,58 @@ def _report_pdf_sections(lines):
             ])
         sections.append({
             "type": "table",
-            "title": f"{hypothesis_id} supporting evidence",
+            "title": f"Hypothesis {hypothesis_id[-1]} Supporting evidence",
             "rows": rows,
             "widths": evidence_widths,
         })
 
     remaining = [line for index, line in enumerate(lines) if index not in omitted]
-    sections.append({
-        "type": "table",
-        "title": "Additional report details",
-        "rows": _report_table_rows(remaining),
-        "widths": (140, 630),
-    })
+    detail_sections = (
+        ("Adaptive weekly hypotheses (authoritative latest decisions)",
+         "Adaptive weekly hypotheses (authoritative latest decisions)"),
+        ("Researched areas (current evidence, not validated scientific findings)",
+         "Researched areas"),
+        ("Adaptive method and limitations", "Adaptive method and limitations"),
+        ("Current supporting source showcase (separate from frozen historical decision references)",
+         "Current supporting source showcase"),
+        ("Original seed hypotheses (historical reference only)",
+         "Original seed hypotheses (historical reference only)"),
+        ("Method and limitations", "Method and limitations"),
+        ("Research limitations", "Research limitations"),
+    )
+    sections.append({"type": "heading", "title": "Additional report details"})
+    detail_groups = []
+    current_title = "Other report details"
+    current_items = []
+    current_started = False
+    for line in remaining:
+        if not line.strip():
+            continue
+        heading = next(
+            ((section_title, source_heading)
+             for section_title, source_heading in detail_sections
+             if line.startswith(source_heading)),
+            None,
+        )
+        if heading:
+            if current_items or current_started:
+                detail_groups.append((current_title, current_items))
+            current_title = heading[0]
+            current_items = []
+            current_started = True
+        else:
+            hypothesis_title = re.match(r"^H([12]) (?=\[)", line)
+            current_items.append(
+                f"Hypothesis {hypothesis_title[1]} {line[hypothesis_title.end():]}"
+                if hypothesis_title else line
+            )
+    if current_items or current_started:
+        detail_groups.append((current_title, current_items))
+    for section_number, (title, items) in enumerate(detail_groups, start=1):
+        sections.extend([
+            {"type": "heading", "title": f"Section {section_number}: {title}"},
+            {"type": "bullets", "items": items},
+        ])
     return sections
 
 
