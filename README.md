@@ -128,7 +128,7 @@ than replaces, the built-in Microsoft-owned organization exclusions.
 The workflow stores compact weekly lifecycle state in a dedicated
 `[hypothesis-research-state] Weekly research lifecycle` issue created by
 `github-actions[bot]` in this repository. This survives fresh runners and artifact
-expiry without committing generated state or granting the job contents-write
+expiry without committing generated state or granting the scoring job contents-write
 permission. The scoring job receives **issues: write** on its repository-scoped
 `GITHUB_TOKEN` solely for this state store; existing App credentials still read
 the monitored upstream issues and PRs. Email and action ordering are unchanged.
@@ -151,9 +151,13 @@ in the monitored repositories.
 
 Both PDFs are uploaded as workflow artifacts (`issue-snapshot-<run-id>-<attempt>`
 and `hypothesis-report-<run-id>-<attempt>`). Attempt-specific names also prevent
-reruns from attaching a previous attempt's PDFs. Generation occurs in root-level history folders
-on the runner; these files are **not automatically committed** to git. Artifact
-retention follows repository settings. Historical PDFs are excluded from current
+reruns from attaching a previous attempt's PDFs. Generation occurs in root-level history
+folders on the runner. A separate publishing job downloads the current issue snapshot
+and commits it to `snapshot-history/` on the run's branch, preserving earlier dated
+snapshots. Only this job receives **contents: write**; branch rules must permit its
+push. An unchanged snapshot does not create another commit. Hypothesis report PDFs
+remain artifact-only. Artifact retention follows repository settings.
+Historical PDFs are excluded from current
 run inputs, and email downloads only that run's artifacts into fresh temporary
 directories, so a failed run cannot attach an older checked-in report.
 
@@ -289,7 +293,8 @@ the newly selected issues.
 
 After a successful refresh, the workflow writes the full ProjectV2 board to
 `snapshot-history/windows-container-issue-snapshot-YYYY-MM-DD.pdf` and uploads
-the PDF as a run artifact. Scheduled emails and requested manual-run emails
+the PDF as a run artifact. A separate job also commits the snapshot to the run's
+branch under `snapshot-history/`. Scheduled emails and requested manual-run emails
 include the ProjectV2 link and attach that run's snapshot.
 
 An issue is eligible for stale-item cleanup only when it belongs to a monitored
