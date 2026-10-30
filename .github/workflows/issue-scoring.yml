@@ -152,6 +152,38 @@ jobs:
           git pull --rebase origin "$GITHUB_REF_NAME"
           git push origin "HEAD:${GITHUB_REF_NAME}"
 
+  publish-hypothesis-report:
+    needs: score-issues
+    if: ${{ always() && !cancelled() && needs.score-issues.outputs.report_status == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Download hypothesis report
+        uses: actions/download-artifact@v4
+        with:
+          name: hypothesis-report-${{ github.run_id }}-${{ github.run_attempt }}
+          path: report-history
+
+      - name: Commit and push hypothesis report
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- report-history/*.pdf
+          if git diff --cached --quiet; then
+            echo "Hypothesis report is already committed."
+            exit 0
+          fi
+          git commit -m "Archive hypothesis report for run ${GITHUB_RUN_ID}" \
+            -m "Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
+          git pull --rebase origin "$GITHUB_REF_NAME"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
   email-weekly-status:
     needs: score-issues
     if: ${{ always() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.send_email)) }}

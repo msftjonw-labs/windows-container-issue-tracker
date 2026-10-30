@@ -152,11 +152,14 @@ in the monitored repositories.
 Both PDFs are uploaded as workflow artifacts (`issue-snapshot-<run-id>-<attempt>`
 and `hypothesis-report-<run-id>-<attempt>`). Attempt-specific names also prevent
 reruns from attaching a previous attempt's PDFs. Generation occurs in root-level history
-folders on the runner. A separate publishing job downloads the current issue snapshot
-and commits it to `snapshot-history/` on the run's branch, preserving earlier dated
-snapshots. Only this job receives **contents: write**; branch rules must permit its
-push. An unchanged snapshot does not create another commit. Hypothesis report PDFs
-remain artifact-only. Artifact retention follows repository settings.
+folders on the runner. Separate publishing jobs download the current issue snapshot
+and hypothesis report and commit them to root-level `snapshot-history/` and
+`report-history/` respectively on the run's branch, preserving earlier dated PDFs.
+Scheduled runs publish to the default branch; manual runs publish to the selected
+branch. Only these publishing jobs receive **contents: write**; branch rules must
+permit their pushes. Each job runs only when its PDF was generated successfully,
+and an unchanged PDF does not create another commit. Reruns on the same UTC date
+update that date's file. Artifact retention follows repository settings.
 Historical PDFs are excluded from current
 run inputs, and email downloads only that run's artifacts into fresh temporary
 directories, so a failed run cannot attach an older checked-in report.
