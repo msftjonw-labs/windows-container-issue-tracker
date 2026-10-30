@@ -1,0 +1,498 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [4 0 R 6 0 R 8 0 R 10 0 R 12 0 R 14 0 R] /Count 6 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 595] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>
+endobj
+5 0 obj
+<< /Length 4971 >>
+stream
+0 G
+39 545 m 39 549 43 549 43 545 c 43 541 39 541 39 545 c f
+BT /F1 9 Tf 50 546 Td (Windows Container Hypothesis Validation - Evidence Triage) Tj ET
+39 529 m 39 533 43 533 43 529 c 43 525 39 525 39 529 c f
+BT /F1 9 Tf 50 530 Td (Generated: 2026-10-30 21:26:43 UTC) Tj ET
+39 513 m 39 517 43 517 43 513 c 43 509 39 509 39 513 c f
+BT /F1 9 Tf 50 514 Td (Total analyzed issues: 418 \(all exported qualifying scored issues; no research cap\)) Tj ET
+39 497 m 39 501 43 501 43 497 c 43 493 39 493 39 497 c f
+BT /F1 9 Tf 50 498 Td (Observation week: 2026-W44 | first successful observation is frozen.) Tj ET
+39 481 m 39 485 43 485 43 481 c 43 477 39 477 39 481 c f
+BT /F1 9 Tf 50 482 Td (Hypothesis 1: Windows container network connectivity barriers; Decision: provisional | area: networking | streak: 0/3 | frozen fresh repositories: 1) Tj ET
+39 465 m 39 469 43 469 43 465 c 43 461 39 461 39 465 c f
+BT /F1 9 Tf 50 466 Td (Hypothesis 2: Windows container runtime/host compatibility barriers; Decision: provisional | area: runtime/compatibility | streak: 0/3 | frozen fresh) Tj ET
+BT /F1 9 Tf 50 454 Td (repositories: 0) Tj ET
+BT /F1 11 Tf 36 438 Td (Hypothesis 1 Supporting evidence) Tj ET
+0.88 g 36 411 770 18 re f
+0 g
+0.45 G 0.6 w 36 411 770 18 re S
+36 411 105 18 re S
+BT /F1 8 Tf 42 416 Td (Repository) Tj ET
+141 411 100 18 re S
+BT /F1 8 Tf 147 416 Td (Source / updated) Tj ET
+241 411 275 18 re S
+BT /F1 8 Tf 247 416 Td (Title and supporting context) Tj ET
+516 411 190 18 re S
+BT /F1 8 Tf 522 416 Td (URL) Tj ET
+706 411 100 18 re S
+BT /F1 8 Tf 712 416 Td (Signal keys) Tj ET
+0 g
+0.45 G 0.6 w 36 293 770 118 re S
+36 293 105 118 re S
+BT /F1 8 Tf 42 398 Td (kubernetes/kubernetes) Tj ET
+141 293 100 118 re S
+BT /F1 8 Tf 147 398 Td (issue |) Tj ET
+BT /F1 8 Tf 147 388 Td (2026-10-26T13:26:57Z) Tj ET
+241 293 275 118 re S
+BT /F1 8 Tf 247 398 Td (Dynamic Resource Allocation \(DeviceClass/Device\) is not) Tj ET
+BT /F1 8 Tf 247 388 Td (supported on Windows nodes Supporting context: ## Why is) Tj ET
+BT /F1 8 Tf 247 378 Td (this needed? DRA exists because the device-plugin +) Tj ET
+BT /F1 8 Tf 247 368 Td (extended-resource model only advertises an integer count of) Tj ET
+BT /F1 8 Tf 247 358 Td (a node-local resource. It cannot express device) Tj ET
+BT /F1 8 Tf 247 348 Td (init/cleanup \(e.g. reprogramming an FPGA\), partial) Tj ET
+BT /F1 8 Tf 247 338 Td (partitions \(Nvidia MIG / SR-IOV\), dynamic/network-attached) Tj ET
+BT /F1 8 Tf 247 328 Td (devices, or structured property-based matching. The) Tj ET
+BT /F1 8 Tf 247 318 Td (motivating scenario - device-centric accelerator workloads) Tj ET
+BT /F1 8 Tf 247 308 Td (\(GPU/AI, NIC/DPU, edge/batch\) - applies to Windows) Tj ET
+BT /F1 8 Tf 247 298 Td (containers exactly as on Linux \(Windows GPU/AI is a rea...) Tj ET
+516 293 190 118 re S
+BT /F1 8 Tf 522 398 Td (https://github.com/kubernetes/kubernetes) Tj ET
+BT /F1 8 Tf 522 388 Td (/issues/141841) Tj ET
+706 293 100 118 re S
+BT /F1 8 Tf 712 398 Td (networking:connectiv) Tj ET
+BT /F1 8 Tf 712 388 Td (ity) Tj ET
+0 g
+0.45 G 0.6 w 36 175 770 118 re S
+36 175 105 118 re S
+BT /F1 8 Tf 42 280 Td (containerd/containerd) Tj ET
+141 175 100 118 re S
+BT /F1 8 Tf 147 280 Td (issue_comment |) Tj ET
+BT /F1 8 Tf 147 270 Td (2026-07-24T16:09:49Z) Tj ET
+241 175 275 118 re S
+BT /F1 8 Tf 247 280 Td (Windows: Enable host process container to run with) Tj ET
+BT /F1 8 Tf 247 270 Td (hostnetwork=false Supporting context: **Issue Summary** -) Tj ET
+BT /F1 8 Tf 247 260 Td (You requested support for Windows HostProcess containers to) Tj ET
+BT /F1 8 Tf 247 250 Td (run with `hostNetwork: false` instead of being forced onto) Tj ET
+BT /F1 8 Tf 247 240 Td (the host network. - The goal is to keep host-level) Tj ET
+BT /F1 8 Tf 247 230 Td (privileges while using an isolated default network) Tj ET
+BT /F1 8 Tf 247 220 Td (compartment, so the pod can participate in a service mesh) Tj ET
+BT /F1 8 Tf 247 210 Td (and avoid port conflicts. - @abhitoshj also supported the) Tj ET
+BT /F1 8 Tf 247 200 Td (feature, highlighting the value of preserving) Tj ET
+BT /F1 8 Tf 247 190 Td (file/registry/system access while improving network) Tj ET
+BT /F1 8 Tf 247 180 Td (isolation. - There hasn?t been a resolutio...) Tj ET
+516 175 190 118 re S
+BT /F1 8 Tf 522 280 Td (https://github.com/containerd/containerd) Tj ET
+BT /F1 8 Tf 522 270 Td (/issues/12225#issuecomment-5071886656) Tj ET
+706 175 100 118 re S
+BT /F1 8 Tf 712 280 Td (networking:connectiv) Tj ET
+BT /F1 8 Tf 712 270 Td (ity, runtime:compati) Tj ET
+BT /F1 8 Tf 712 260 Td (bility) Tj ET
+BT /F1 11 Tf 36 148 Td (Hypothesis 2 Supporting evidence) Tj ET
+0.88 g 36 121 770 18 re f
+0 g
+0.45 G 0.6 w 36 121 770 18 re S
+36 121 105 18 re S
+BT /F1 8 Tf 42 126 Td (Repository) Tj ET
+141 121 100 18 re S
+BT /F1 8 Tf 147 126 Td (Source / updated) Tj ET
+241 121 275 18 re S
+BT /F1 8 Tf 247 126 Td (Title and supporting context) Tj ET
+516 121 190 18 re S
+BT /F1 8 Tf 522 126 Td (URL) Tj ET
+706 121 100 18 re S
+BT /F1 8 Tf 712 126 Td (Signal keys) Tj ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 595] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 6230 >>
+stream
+0 G
+0.88 g 36 541 770 18 re f
+0 g
+0.45 G 0.6 w 36 541 770 18 re S
+36 541 105 18 re S
+BT /F1 8 Tf 42 546 Td (Repository) Tj ET
+141 541 100 18 re S
+BT /F1 8 Tf 147 546 Td (Source / updated) Tj ET
+241 541 275 18 re S
+BT /F1 8 Tf 247 546 Td (Title and supporting context) Tj ET
+516 541 190 18 re S
+BT /F1 8 Tf 522 546 Td (URL) Tj ET
+706 541 100 18 re S
+BT /F1 8 Tf 712 546 Td (Signal keys) Tj ET
+0 g
+0.45 G 0.6 w 36 433 770 108 re S
+36 433 105 108 re S
+BT /F1 8 Tf 42 528 Td (kubernetes/website) Tj ET
+141 433 100 108 re S
+BT /F1 8 Tf 147 528 Td (pull_request |) Tj ET
+BT /F1 8 Tf 147 518 Td (2026-10-07T16:17:57Z) Tj ET
+241 433 275 108 re S
+BT /F1 8 Tf 247 528 Td (Document Windows CPU and memory affinity beta graduation) Tj ET
+BT /F1 8 Tf 247 518 Td (Supporting context: - updates the) Tj ET
+BT /F1 8 Tf 247 508 Td (`WindowsCPUAndMemoryAffinity` feature gate to beta and) Tj ET
+BT /F1 8 Tf 247 498 Td (enabled by default in v1.38; - documents the required CRI,) Tj ET
+BT /F1 8 Tf 247 488 Td (containerd, and runhcs support for Windows CPU and memory) Tj ET
+BT /F1 8 Tf 247 478 Td (affinity; - clarifies Windows Memory Manager `BestEffort`) Tj ET
+BT /F1 8 Tf 247 468 Td (behavior, CPU and NUMA affinity coordination, and physical) Tj ET
+BT /F1 8 Tf 247 458 Td (memory placement limitations; - documents Memory Manager) Tj ET
+BT /F1 8 Tf 247 448 Td (checkpoint recovery; and - updates the Windows Topology) Tj ET
+BT /F1 8 Tf 247 438 Td (Manager guidance for `single-numa-node` workloads.) Tj ET
+516 433 190 108 re S
+BT /F1 8 Tf 522 528 Td (https://github.com/kubernetes/website/pu) Tj ET
+BT /F1 8 Tf 522 518 Td (ll/57911) Tj ET
+706 433 100 108 re S
+BT /F1 8 Tf 712 528 Td (runtime:compatibilit) Tj ET
+BT /F1 8 Tf 712 518 Td (y) Tj ET
+0 g
+0.45 G 0.6 w 36 315 770 118 re S
+36 315 105 118 re S
+BT /F1 8 Tf 42 420 Td (moby/moby) Tj ET
+141 315 100 118 re S
+BT /F1 8 Tf 147 420 Td (issue |) Tj ET
+BT /F1 8 Tf 147 410 Td (2026-08-25T00:12:21Z) Tj ET
+241 315 275 118 re S
+BT /F1 8 Tf 247 420 Td (Flaky test: TestBuildWCOWSandboxSize \(insufficient disk) Tj ET
+BT /F1 8 Tf 247 410 Td (space?\) Supporting context: ``` {"stream":"Step 1/8 : FROM) Tj ET
+BT /F1 8 Tf 247 400 Td (busybox AS intermediate"} {"stream":"\\\\n"} {"stream":") Tj ET
+BT /F1 8 Tf 247 390 Td (---\\\\u003e ea8f1b6e5c44\\\\n"} {"stream":"Step 2/8 : WORKDIR) Tj ET
+BT /F1 8 Tf 247 380 Td (C:\\\\\\\\\\\\\\\\stuff"} {"stream":"\\\\n"} {"stream":" ---\\\\u003e) Tj ET
+BT /F1 8 Tf 247 370 Td (Running in a2d453ddd861\\\\n"} {"stream":"Removing) Tj ET
+BT /F1 8 Tf 247 360 Td (intermediate container a2d453ddd861\\\\n"} {"stream":") Tj ET
+BT /F1 8 Tf 247 350 Td (---\\\\u003e 395a1b07f269\\\\n"} {"stream":"Step 3/8 : RUN) Tj ET
+BT /F1 8 Tf 247 340 Td (fsutil file createnew C:\\\\\\\\\\\\\\\\stuff\\\\\\\\\\\\\\\\bigfile_0.txt) Tj ET
+BT /F1 8 Tf 247 330 Td (22548578304 \\\\u0026\\\\u0026 del bigfile_0.txt"}) Tj ET
+BT /F1 8 Tf 247 320 Td ({"stream":"\\\\n"} {"stream":" --...) Tj ET
+516 315 190 118 re S
+BT /F1 8 Tf 522 420 Td (https://github.com/moby/moby/issues/4274) Tj ET
+BT /F1 8 Tf 522 410 Td (3) Tj ET
+706 315 100 118 re S
+BT /F1 8 Tf 712 420 Td (runtime:compatibilit) Tj ET
+BT /F1 8 Tf 712 410 Td (y) Tj ET
+0 g
+0.45 G 0.6 w 36 177 770 138 re S
+36 177 105 138 re S
+BT /F1 8 Tf 42 302 Td (docker/for-win) Tj ET
+141 177 100 138 re S
+BT /F1 8 Tf 147 302 Td (issue |) Tj ET
+BT /F1 8 Tf 147 292 Td (2026-08-10T13:29:36Z) Tj ET
+241 177 275 138 re S
+BT /F1 8 Tf 247 302 Td (Can't re-start docker container when AMD GFX in computer) Tj ET
+BT /F1 8 Tf 247 292 Td (\(HTTP code 500\) server error - hcsshim::ActivateLayer) Tj ET
+BT /F1 8 Tf 247 282 Td (failed in Win32: The process cannot access the fi) Tj ET
+BT /F1 8 Tf 247 272 Td (Supporting context: And I also found that when I install) Tj ET
+BT /F1 8 Tf 247 262 Td (McAfee and when I enable real time virus detection all) Tj ET
+BT /F1 8 Tf 247 252 Td (works fine when I disable real time virus detection) Tj ET
+BT /F1 8 Tf 247 242 Td ("hcsshim::ActivateLayer failed in Win32..." | Can't re-) Tj ET
+BT /F1 8 Tf 247 232 Td (start docker container when AMD GFX in computer \(HTTP code) Tj ET
+BT /F1 8 Tf 247 222 Td (500\) server error - hcsshim::ActivateLayer failed in Win32:) Tj ET
+BT /F1 8 Tf 247 212 Td (The process cannot access the file because it is being used) Tj ET
+BT /F1 8 Tf 247 202 Td (by another process. \(0x20\) | I want to run windows docker) Tj ET
+BT /F1 8 Tf 247 192 Td (container\(--isolation=process\) and first time it run just) Tj ET
+BT /F1 8 Tf 247 182 Td (fin...) Tj ET
+516 177 190 138 re S
+BT /F1 8 Tf 522 302 Td (https://github.com/docker/for-) Tj ET
+BT /F1 8 Tf 522 292 Td (win/issues/14977) Tj ET
+706 177 100 138 re S
+BT /F1 8 Tf 712 302 Td (runtime:compatibilit) Tj ET
+BT /F1 8 Tf 712 292 Td (y) Tj ET
+0 g
+0.45 G 0.6 w 36 59 770 118 re S
+36 59 105 118 re S
+BT /F1 8 Tf 42 164 Td (containerd/containerd) Tj ET
+141 59 100 118 re S
+BT /F1 8 Tf 147 164 Td (issue_comment |) Tj ET
+BT /F1 8 Tf 147 154 Td (2026-07-24T16:09:49Z) Tj ET
+241 59 275 118 re S
+BT /F1 8 Tf 247 164 Td (Windows: Enable host process container to run with) Tj ET
+BT /F1 8 Tf 247 154 Td (hostnetwork=false Supporting context: **Issue Summary** -) Tj ET
+BT /F1 8 Tf 247 144 Td (You requested support for Windows HostProcess containers to) Tj ET
+BT /F1 8 Tf 247 134 Td (run with `hostNetwork: false` instead of being forced onto) Tj ET
+BT /F1 8 Tf 247 124 Td (the host network. - The goal is to keep host-level) Tj ET
+BT /F1 8 Tf 247 114 Td (privileges while using an isolated default network) Tj ET
+BT /F1 8 Tf 247 104 Td (compartment, so the pod can participate in a service mesh) Tj ET
+BT /F1 8 Tf 247 94 Td (and avoid port conflicts. - @abhitoshj also supported the) Tj ET
+BT /F1 8 Tf 247 84 Td (feature, highlighting the value of preserving) Tj ET
+BT /F1 8 Tf 247 74 Td (file/registry/system access while improving network) Tj ET
+BT /F1 8 Tf 247 64 Td (isolation. - There hasn?t been a resolutio...) Tj ET
+516 59 190 118 re S
+BT /F1 8 Tf 522 164 Td (https://github.com/containerd/containerd) Tj ET
+BT /F1 8 Tf 522 154 Td (/issues/12225#issuecomment-5071886656) Tj ET
+706 59 100 118 re S
+BT /F1 8 Tf 712 164 Td (networking:connectiv) Tj ET
+BT /F1 8 Tf 712 154 Td (ity, runtime:compati) Tj ET
+BT /F1 8 Tf 712 144 Td (bility) Tj ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 595] /Resources << /Font << /F1 3 0 R >> >> /Contents 9 0 R >>
+endobj
+9 0 obj
+<< /Length 4859 >>
+stream
+0 G
+BT /F1 12 Tf 36 545 Td (Additional report details) Tj ET
+BT /F1 12 Tf 36 521 Td (Other report details) Tj ET
+39 497 m 39 501 43 501 43 497 c 43 493 39 493 39 497 c f
+BT /F1 9 Tf 50 498 Td (Scored issue export: /home/runner/work/windows-container-issue-tracker/windows-container-issue-tracker/scoring-output/scored-issues.json) Tj ET
+BT /F1 12 Tf 36 481 Td (Adaptive weekly hypotheses \(authoritative latest decisions\)) Tj ET
+39 457 m 39 461 43 461 43 457 c 43 453 39 453 39 457 c f
+BT /F1 9 Tf 50 458 Td (Observation week: 2026-W44 | first successful observation is frozen.) Tj ET
+39 441 m 39 445 43 445 43 441 c 43 437 39 437 39 441 c f
+BT /F1 9 Tf 50 442 Td (Same-week rerun: frozen decision; evidence below is current.) Tj ET
+39 425 m 39 429 43 429 43 425 c 43 421 39 421 39 425 c f
+BT /F1 9 Tf 50 426 Td (Hypothesis 1 [networking:connectivity] Windows container network connectivity barriers) Tj ET
+39 409 m 39 413 43 413 43 409 c 43 405 39 405 39 409 c f
+BT /F1 9 Tf 50 410 Td (Decision: provisional | area: networking | streak: 0/3 | frozen fresh repositories: 1) Tj ET
+39 393 m 39 397 43 397 43 393 c 43 389 39 389 39 393 c f
+BT /F1 9 Tf 50 394 Td (Frozen decision witnesses \(historical audit references only, up to 3 per slot; not current showcase\):) Tj ET
+39 377 m 39 381 43 381 43 377 c 43 373 39 373 39 377 c f
+BT /F1 9 Tf 50 378 Td (  kubernetes/kubernetes | issue | 2026-10-26T13:26:57Z) Tj ET
+39 361 m 39 365 43 365 43 361 c 43 357 39 357 39 361 c f
+BT /F1 9 Tf 50 362 Td (  https://github.com/kubernetes/kubernetes/issues/141841) Tj ET
+39 345 m 39 349 43 349 43 345 c 43 341 39 341 39 345 c f
+BT /F1 9 Tf 50 346 Td (Hypothesis 2 [runtime:compatibility] Windows container runtime/host compatibility barriers) Tj ET
+39 329 m 39 333 43 333 43 329 c 43 325 39 325 39 329 c f
+BT /F1 9 Tf 50 330 Td (Decision: provisional | area: runtime/compatibility | streak: 0/3 | frozen fresh repositories: 0) Tj ET
+39 313 m 39 317 43 317 43 313 c 43 309 39 309 39 313 c f
+BT /F1 9 Tf 50 314 Td (Frozen decision witnesses \(historical audit references only, up to 3 per slot; not current showcase\):) Tj ET
+39 297 m 39 301 43 301 43 297 c 43 293 39 293 39 297 c f
+BT /F1 9 Tf 50 298 Td (  None; no fresh repository support was recorded for this decision.) Tj ET
+BT /F1 12 Tf 36 281 Td (Researched areas \(current evidence, not validated scientific findings\)) Tj ET
+39 257 m 39 261 43 261 43 257 c 43 253 39 253 39 257 c f
+BT /F1 9 Tf 50 258 Td (Area totals describe research coverage only; qualification requires >=3 fresh eligible repositories for the SAME signal.) Tj ET
+39 241 m 39 245 43 245 43 241 c 43 237 39 237 39 241 c f
+BT /F1 9 Tf 50 242 Td (  networking: 6 distinct eligible supporting repositories; 1 fresh. Area totals are not qualifications or validations.) Tj ET
+39 225 m 39 229 43 229 43 225 c 43 221 39 221 39 225 c f
+BT /F1 9 Tf 50 226 Td (    networking:connectivity: eligible supporting repositories=6; fresh=1; current >=3 fresh repository threshold: NOT MET \(provisional / insufficient) Tj ET
+BT /F1 9 Tf 50 214 Td (fresh recurrence\).) Tj ET
+39 197 m 39 201 43 201 43 197 c 43 193 39 193 39 197 c f
+BT /F1 9 Tf 50 198 Td (    networking:dns: eligible supporting repositories=1; fresh=0; current >=3 fresh repository threshold: NOT MET \(provisional / insufficient fresh) Tj ET
+BT /F1 9 Tf 50 186 Td (recurrence\).) Tj ET
+39 169 m 39 173 43 173 43 169 c 43 165 39 165 39 169 c f
+BT /F1 9 Tf 50 170 Td (  identity: 2 distinct eligible supporting repositories; 0 fresh. Area totals are not qualifications or validations.) Tj ET
+39 153 m 39 157 43 157 43 153 c 43 149 39 149 39 153 c f
+BT /F1 9 Tf 50 154 Td (    identity:authentication: eligible supporting repositories=2; fresh=0; current >=3 fresh repository threshold: NOT MET \(provisional / insufficient) Tj ET
+BT /F1 9 Tf 50 142 Td (fresh recurrence\).) Tj ET
+39 125 m 39 129 43 129 43 125 c 43 121 39 121 39 125 c f
+BT /F1 9 Tf 50 126 Td (    identity:gmsa: eligible supporting repositories=0; fresh=0; current >=3 fresh repository threshold: NOT MET \(provisional / insufficient fresh) Tj ET
+BT /F1 9 Tf 50 114 Td (recurrence\).) Tj ET
+39 97 m 39 101 43 101 43 97 c 43 93 39 93 39 97 c f
+BT /F1 9 Tf 50 98 Td (  images/Nano: 2 distinct eligible supporting repositories; 0 fresh. Area totals are not qualifications or validations.) Tj ET
+39 81 m 39 85 43 85 43 81 c 43 77 39 77 39 81 c f
+BT /F1 9 Tf 50 82 Td (    images:nano-api: eligible supporting repositories=2; fresh=0; current >=3 fresh repository threshold: NOT MET \(provisional / insufficient fresh) Tj ET
+BT /F1 9 Tf 50 70 Td (recurrence\).) Tj ET
+39 53 m 39 57 43 57 43 53 c 43 49 39 49 39 53 c f
+BT /F1 9 Tf 50 54 Td (    images:size: eligible supporting repositories=0; fresh=0; current >=3 fresh repository threshold: NOT MET \(provisional / insufficient fresh) Tj ET
+BT /F1 9 Tf 50 42 Td (recurrence\).) Tj ET
+endstream
+endobj
+10 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 595] /Resources << /Font << /F1 3 0 R >> >> /Contents 11 0 R >>
+endobj
+11 0 obj
+<< /Length 5405 >>
+stream
+0 G
+39 545 m 39 549 43 549 43 545 c 43 541 39 541 39 545 c f
+BT /F1 9 Tf 50 546 Td (  runtime/compatibility: 5 distinct eligible supporting repositories; 0 fresh. Area totals are not qualifications or validations.) Tj ET
+39 529 m 39 533 43 533 43 529 c 43 525 39 525 39 529 c f
+BT /F1 9 Tf 50 530 Td (    runtime:compatibility: eligible supporting repositories=5; fresh=0; current >=3 fresh repository threshold: NOT MET \(provisional / insufficient) Tj ET
+BT /F1 9 Tf 50 518 Td (fresh recurrence\).) Tj ET
+39 501 m 39 505 43 505 43 501 c 43 497 39 497 39 501 c f
+BT /F1 9 Tf 50 502 Td (  tooling/build: 5 distinct eligible supporting repositories; 0 fresh. Area totals are not qualifications or validations.) Tj ET
+39 485 m 39 489 43 489 43 485 c 43 481 39 481 39 485 c f
+BT /F1 9 Tf 50 486 Td (    tooling:build: eligible supporting repositories=5; fresh=0; current >=3 fresh repository threshold: NOT MET \(provisional / insufficient fresh) Tj ET
+BT /F1 9 Tf 50 474 Td (recurrence\).) Tj ET
+39 457 m 39 461 43 461 43 457 c 43 453 39 453 39 457 c f
+BT /F1 9 Tf 50 458 Td (  licensing/cost: 0 distinct eligible supporting repositories; 0 fresh. Area totals are not qualifications or validations.) Tj ET
+39 441 m 39 445 43 445 43 441 c 43 437 39 437 39 441 c f
+BT /F1 9 Tf 50 442 Td (    licensing:cost: eligible supporting repositories=0; fresh=0; current >=3 fresh repository threshold: NOT MET \(provisional / insufficient fresh) Tj ET
+BT /F1 9 Tf 50 430 Td (recurrence\).) Tj ET
+39 413 m 39 417 43 417 43 413 c 43 409 39 409 39 413 c f
+BT /F1 9 Tf 50 414 Td (  community: 1 distinct eligible supporting repositories; 0 fresh. Area totals are not qualifications or validations.) Tj ET
+39 397 m 39 401 43 401 43 397 c 43 393 39 393 39 397 c f
+BT /F1 9 Tf 50 398 Td (    community:adoption: eligible supporting repositories=1; fresh=0; current >=3 fresh repository threshold: NOT MET \(provisional / insufficient) Tj ET
+BT /F1 9 Tf 50 386 Td (fresh recurrence\).) Tj ET
+BT /F1 12 Tf 36 369 Td (Adaptive method and limitations) Tj ET
+39 345 m 39 349 43 349 43 345 c 43 341 39 341 39 345 c f
+BT /F1 9 Tf 50 346 Td (Qualifying = same signal in >=3 eligible public repositories with fresh source evidence.) Tj ET
+39 329 m 39 333 43 333 43 329 c 43 325 39 325 39 329 c f
+BT /F1 9 Tf 50 330 Td (Retained candidates need 3 consecutive qualifying weeks to complete; missing weeks reset streaks.) Tj ET
+39 313 m 39 317 43 317 43 313 c 43 309 39 309 39 313 c f
+BT /F1 9 Tf 50 314 Td (Completed hypotheses exit further evolution/streak increments; reports continue.) Tj ET
+39 297 m 39 301 43 301 43 297 c 43 293 39 293 39 297 c f
+BT /F1 9 Tf 50 298 Td (This is deterministic evidence triage, not scientific proof, validation or causal inference.) Tj ET
+39 281 m 39 285 43 285 43 281 c 43 277 39 277 39 281 c f
+BT /F1 9 Tf 50 282 Td (Independent means distinct full repository names, NOT distinct owners or independent people.) Tj ET
+39 265 m 39 269 43 269 43 265 c 43 261 39 261 39 265 c f
+BT /F1 9 Tf 50 266 Td (Only API isPrivate=false sources count; Microsoft/AKS sources remain context only.) Tj ET
+39 249 m 39 253 43 253 43 249 c 43 245 39 245 39 249 c f
+BT /F1 9 Tf 50 250 Td (Excluded owners: aks, azure, azure-devops, azure-samples, azuread, dotnet, microsoft, microsoft-docker, microsoftdocs, microsoftgraph, powershell,) Tj ET
+BT /F1 9 Tf 50 238 Td (windows, windowsserverdocs; additional owners: HYPOTHESIS_EXCLUDED_OWNERS.) Tj ET
+39 221 m 39 225 43 225 43 221 c 43 217 39 217 39 221 c f
+BT /F1 9 Tf 50 222 Td (Current evidence window \(UTC\): \(2026-10-23T21:26:43.262125+00:00, 2026-10-30T21:26:43.262125+00:00].) Tj ET
+39 205 m 39 209 43 209 43 205 c 43 201 39 201 39 205 c f
+BT /F1 9 Tf 50 206 Td (Freshness uses source/comment updatedAt in the trailing 7 days, excluding the lower boundary.) Tj ET
+39 189 m 39 193 43 193 43 189 c 43 185 39 185 39 189 c f
+BT /F1 9 Tf 50 190 Td (For consecutive weekly observations, the window starts no earlier than the prior observed_at.) Tj ET
+39 173 m 39 177 43 177 43 173 c 43 169 39 169 39 173 c f
+BT /F1 9 Tf 50 174 Td (This prevents overlapping evidence reuse; missing weeks use only the last 7 days and reset streaks.) Tj ET
+39 157 m 39 161 43 161 43 157 c 43 153 39 153 39 157 c f
+BT /F1 9 Tf 50 158 Td (ISO weeks freeze decisions, not source dates. Historical sources are discovery only; future dates never count.) Tj ET
+39 141 m 39 145 43 145 43 141 c 43 137 39 137 39 141 c f
+BT /F1 9 Tf 50 142 Td (Issue/PR updatedAt may reflect unrelated metadata, not a changed claim; comment dates are source-specific.) Tj ET
+39 125 m 39 129 43 129 43 125 c 43 121 39 121 39 125 c f
+BT /F1 9 Tf 50 126 Td (Only latest 100 comments and most recently updated linked PR are examined.) Tj ET
+39 109 m 39 113 43 113 43 109 c 43 105 39 105 39 109 c f
+BT /F1 9 Tf 50 110 Td (Hypothesis ranking \(unchanged by showcase selection\): unique eligible supporting repositories,) Tj ET
+39 93 m 39 97 43 97 43 93 c 43 89 39 89 39 93 c f
+BT /F1 9 Tf 50 94 Td (then unique issue URLs \(not comments/PR boosts\), then signal id.) Tj ET
+39 77 m 39 81 43 81 43 77 c 43 73 39 73 39 77 c f
+BT /F1 9 Tf 50 78 Td (Taxonomy: area + explicit barrier intent; specific DNS/gMSA/Nano intents take precedence.) Tj ET
+39 61 m 39 65 43 65 43 61 c 43 57 39 57 39 61 c f
+BT /F1 9 Tf 50 62 Td (Negation/resolution/non-barriers are separate contrary/inconclusive evidence, never supporting votes.) Tj ET
+endstream
+endobj
+12 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 595] /Resources << /Font << /F1 3 0 R >> >> /Contents 13 0 R >>
+endobj
+13 0 obj
+<< /Length 4979 >>
+stream
+0 G
+39 545 m 39 549 43 549 43 545 c 43 541 39 541 39 545 c f
+BT /F1 9 Tf 50 546 Td (Signal taxonomy: networking:dns = DNS resolution failures; networking:connectivity = network connectivity barriers; identity:gmsa = gMSA) Tj ET
+BT /F1 9 Tf 50 534 Td (authentication barriers; identity:authentication = authentication barriers; images:nano-api = Nano Server API/testing limitations;) Tj ET
+BT /F1 9 Tf 50 522 Td (runtime:compatibility = runtime/host compatibility barriers; images:size = image size/distribution barriers; tooling:build = build/tooling failures;) Tj ET
+BT /F1 9 Tf 50 510 Td (licensing:cost = licensing/cost barriers; community:adoption = community/adoption barriers) Tj ET
+BT /F1 12 Tf 36 493 Td (Current supporting source showcase \(separate from frozen historical decision references\)) Tj ET
+39 469 m 39 473 43 473 43 469 c 43 465 39 465 39 469 c f
+BT /F1 9 Tf 50 470 Td (Supporting sources shown: 5 of 65 eligible unique URLs \(maximum 5 globally\).) Tj ET
+39 453 m 39 457 43 457 43 453 c 43 449 39 449 39 453 c f
+BT /F1 9 Tf 50 454 Td (Selection uses exclusively verified public, non-Microsoft/non-excluded-owner sources.) Tj ET
+39 437 m 39 441 43 441 43 437 c 43 433 39 433 39 437 c f
+BT /F1 9 Tf 50 438 Td (Source rank: current hypothesis key first; urgency label; recent discussion; updatedAt; URL.) Tj ET
+39 421 m 39 425 43 425 43 421 c 43 417 39 417 39 421 c f
+BT /F1 9 Tf 50 422 Td (Urgency \(case-insensitive exact labels\): p0/critical/blocker > p1/high/urgent >) Tj ET
+39 405 m 39 409 43 409 43 405 c 43 401 39 401 39 405 c f
+BT /F1 9 Tf 50 406 Td (p2/medium > p3/low > p4/lowest > unknown; optional 'priority:'/'priority/') Tj ET
+39 389 m 39 393 43 393 43 389 c 43 385 39 385 39 389 c f
+BT /F1 9 Tf 50 390 Td (or 'severity:'/'severity/' prefixes. No urgency inferred from prose or issue score.) Tj ET
+39 373 m 39 377 43 377 43 373 c 43 369 39 369 39 373 c f
+BT /F1 9 Tf 50 374 Td (Diversity first: best ranked source per distinct repository, then ranked fills to five.) Tj ET
+39 357 m 39 361 43 361 43 357 c 43 353 39 353 39 357 c f
+BT /F1 9 Tf 50 358 Td (Discussion = unique comments created in \(now - 7 days, now], among latest 100 fetched;) Tj ET
+39 341 m 39 345 43 345 43 341 c 43 337 39 337 39 341 c f
+BT /F1 9 Tf 50 342 Td (edits and future-created comments do not add activity. No author diversity is inferred.) Tj ET
+39 325 m 39 329 43 329 43 325 c 43 321 39 321 39 325 c f
+BT /F1 9 Tf 50 326 Td (Comment urgency/activity use their parent issue/PR; source repository is always its own.) Tj ET
+39 309 m 39 313 43 313 43 309 c 43 305 39 305 39 309 c f
+BT /F1 9 Tf 50 310 Td (Other evidence - contradicting: 51 candidate signals across 43 unique source URLs \(all researched sources, including excluded context; not supporting) Tj ET
+BT /F1 9 Tf 50 298 Td (votes\).) Tj ET
+39 281 m 39 285 43 285 43 281 c 43 277 39 277 39 281 c f
+BT /F1 9 Tf 50 282 Td (Other evidence - inconclusive: 1749 candidate signals across 651 unique source URLs \(all researched sources, including excluded context; not) Tj ET
+BT /F1 9 Tf 50 270 Td (supporting votes\).) Tj ET
+BT /F1 12 Tf 36 253 Td (Original seed hypotheses \(historical reference only\)) Tj ET
+39 229 m 39 233 43 233 43 229 c 43 225 39 225 39 229 c f
+BT /F1 9 Tf 50 230 Td (Seed 1: The community does not want to use Windows containers as the development platform because it is not free and lacks open source community) Tj ET
+BT /F1 9 Tf 50 218 Td (popularity.) Tj ET
+39 201 m 39 205 43 205 43 201 c 43 197 39 197 39 201 c f
+BT /F1 9 Tf 50 202 Td (Seed 2: The Windows containers community has not grown in the past few years because gaps in the Nano Server container image limit what developers) Tj ET
+BT /F1 9 Tf 50 190 Td (can test on top of it.) Tj ET
+BT /F1 12 Tf 36 173 Td (Method and limitations) Tj ET
+39 149 m 39 153 43 153 43 149 c 43 145 39 145 39 149 c f
+BT /F1 9 Tf 50 150 Td (Fresh issue title/body/state/updatedAt/URL, first 100 labels and latest 100 comments; all pages of) Tj ET
+39 133 m 39 137 43 137 43 133 c 43 129 39 129 39 133 c f
+BT /F1 9 Tf 50 134 Td (cross-referenced and connected timeline events are inspected for actual PR nodes.) Tj ET
+39 117 m 39 121 43 121 43 117 c 43 113 39 113 39 117 c f
+BT /F1 9 Tf 50 118 Td (Only the most recently updated linked PR is examined \(ties: node id\), including) Tj ET
+39 101 m 39 105 43 105 43 101 c 43 97 39 97 39 101 c f
+BT /F1 9 Tf 50 102 Td (its current title/body/state/mergedAt and latest 100 comments. References are not endorsements.) Tj ET
+39 85 m 39 89 43 89 43 85 c 43 81 39 81 39 85 c f
+BT /F1 9 Tf 50 86 Td (Requests are serial via the shared rate-aware GitHub client. No external LLM or) Tj ET
+39 69 m 39 73 43 73 43 69 c 43 65 39 65 39 69 c f
+BT /F1 9 Tf 50 70 Td (arbitrary URLs from issue text are fetched. API/missing-data errors abort the report.) Tj ET
+39 53 m 39 57 43 57 43 53 c 43 49 39 49 39 53 c f
+BT /F1 9 Tf 50 54 Td (Deterministic paragraph-level keyword rules produce supporting, contradicting and) Tj ET
+endstream
+endobj
+14 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 595] /Resources << /Font << /F1 3 0 R >> >> /Contents 15 0 R >>
+endobj
+15 0 obj
+<< /Length 3117 >>
+stream
+0 G
+39 545 m 39 549 43 549 43 545 c 43 541 39 541 39 545 c f
+BT /F1 9 Tf 50 546 Td (inconclusive candidate signals, not automated semantic truth or hypothesis proof.) Tj ET
+39 529 m 39 533 43 533 43 529 c 43 525 39 525 39 529 c f
+BT /F1 9 Tf 50 530 Td (Original seed 1 lexical support requires Windows containers, cost, community, development and) Tj ET
+39 513 m 39 517 43 517 43 513 c 43 509 39 509 39 513 c f
+BT /F1 9 Tf 50 514 Td (barrier terms together without detected negation, except affirmative 'not free') Tj ET
+39 497 m 39 501 43 501 43 497 c 43 493 39 493 39 497 c f
+BT /F1 9 Tf 50 498 Td (cost wording. Other negation, including 'not a barrier' or 'do not avoid', remains) Tj ET
+39 481 m 39 485 43 485 43 481 c 43 477 39 477 39 481 c f
+BT /F1 9 Tf 50 482 Td (disqualifying for seed 1 support. Original seed 2 lexical support requires) Tj ET
+39 465 m 39 469 43 469 43 465 c 43 461 39 461 39 465 c f
+BT /F1 9 Tf 50 466 Td (Nano Server gap/testing terms without detected negation. Explicit non-barrier/use) Tj ET
+39 449 m 39 453 43 453 43 449 c 43 445 39 445 39 449 c f
+BT /F1 9 Tf 50 450 Td (or resolved-gap phrases can be contradicting candidates; other matches are inconclusive.) Tj ET
+39 433 m 39 437 43 437 43 433 c 43 429 39 429 39 433 c f
+BT /F1 9 Tf 50 434 Td (Rules can miss paraphrases, sarcasm, code, quotations, historical context and negation;) Tj ET
+39 417 m 39 421 43 421 43 417 c 43 413 39 413 39 417 c f
+BT /F1 9 Tf 50 418 Td (unrelated Windows needs and topic mentions are not definitive support.) Tj ET
+39 401 m 39 405 43 405 43 401 c 43 397 39 397 39 401 c f
+BT /F1 9 Tf 50 402 Td (Triage retains paragraph context up to 1800 characters; showcase aggregates supporting) Tj ET
+39 385 m 39 389 43 389 43 385 c 43 381 39 381 39 385 c f
+BT /F1 9 Tf 50 386 Td (signal keys/excerpts by source URL into at most 500 characters, with truncation marked.) Tj ET
+39 369 m 39 373 43 373 43 369 c 43 365 39 365 39 369 c f
+BT /F1 9 Tf 50 370 Td (Source dates are last-updated timestamps, not necessarily when a claim was made.) Tj ET
+39 353 m 39 357 43 357 43 353 c 43 349 39 349 39 353 c f
+BT /F1 9 Tf 50 354 Td (Comments older than the latest 100 and non-selected PR contents are outside scope.) Tj ET
+39 337 m 39 341 43 341 43 337 c 43 333 39 333 39 337 c f
+BT /F1 9 Tf 50 338 Td (A scored issue sample cannot establish prevalence, causality, community growth,) Tj ET
+39 321 m 39 325 43 325 43 321 c 43 317 39 317 39 321 c f
+BT /F1 9 Tf 50 322 Td (or represent nonadopters. Activity, scores, open/closed/merged states do not) Tj ET
+39 305 m 39 309 43 309 43 305 c 43 301 39 301 39 305 c f
+BT /F1 9 Tf 50 306 Td (establish popularity or growth. This report does not determine licensing/free-use truth.) Tj ET
+BT /F1 12 Tf 36 289 Td (Research limitations) Tj ET
+39 265 m 39 269 43 269 43 265 c 43 261 39 261 39 265 c f
+BT /F1 9 Tf 50 266 Td (Do not interpret candidate counts as prevalence or validation. Review full sources) Tj ET
+39 249 m 39 253 43 253 43 249 c 43 245 39 245 39 249 c f
+BT /F1 9 Tf 50 250 Td (and obtain representative adopter/nonadopter research and longitudinal growth data.) Tj ET
+endstream
+endobj
+xref
+0 16
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000154 00000 n 
+0000000224 00000 n 
+0000000350 00000 n 
+0000005373 00000 n 
+0000005499 00000 n 
+0000011781 00000 n 
+0000011907 00000 n 
+0000016818 00000 n 
+0000016946 00000 n 
+0000022404 00000 n 
+0000022532 00000 n 
+0000027564 00000 n 
+0000027692 00000 n 
+trailer
+<< /Size 16 /Root 1 0 R >>
+startxref
+30862
+%%EOF
