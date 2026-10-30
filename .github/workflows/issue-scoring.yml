@@ -153,7 +153,7 @@ jobs:
           git push origin "HEAD:${GITHUB_REF_NAME}"
 
   publish-hypothesis-report:
-    needs: score-issues
+    needs: [score-issues, publish-issue-snapshot]
     if: ${{ always() && !cancelled() && needs.score-issues.outputs.report_status == 'success' }}
     runs-on: ubuntu-latest
     permissions:

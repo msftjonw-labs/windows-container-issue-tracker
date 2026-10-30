@@ -158,7 +158,10 @@ and hypothesis report and commit them to root-level `snapshot-history/` and
 Scheduled runs publish to the default branch; manual runs publish to the selected
 branch. Only these publishing jobs receive **contents: write**; branch rules must
 permit their pushes. Each job runs only when its PDF was generated successfully,
-and an unchanged PDF does not create another commit. Reruns on the same UTC date
+and an unchanged PDF does not create another commit. Publishing jobs run sequentially
+to avoid competing branch pushes; hypothesis publishing still runs if snapshot
+publishing fails or is skipped, provided its report was generated successfully.
+Reruns on the same UTC date
 update that date's file. Artifact retention follows repository settings.
 Historical PDFs are excluded from current
 run inputs, and email downloads only that run's artifacts into fresh temporary
