@@ -155,6 +155,8 @@ reruns from attaching a previous attempt's PDFs. Generation occurs in root-level
 folders on the runner. Separate publishing jobs download the current issue snapshot
 and hypothesis report and commit them to root-level `snapshot-history/` and
 `report-history/` respectively on the run's branch, preserving earlier dated PDFs.
+The root-level `report-history/` folder is tracked with `.gitkeep` even before
+the first hypothesis PDF is generated.
 Scheduled runs publish to the default branch; manual runs publish to the selected
 branch. Only these publishing jobs receive **contents: write**; branch rules must
 permit their pushes. Each job runs only when its PDF was generated successfully,
