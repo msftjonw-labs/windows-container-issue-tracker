@@ -19,7 +19,7 @@ stream
 39 545 m 39 549 43 549 43 545 c 43 541 39 541 39 545 c f
 BT /F1 9 Tf 50 546 Td (Windows Container Hypothesis Validation - Evidence Triage) Tj ET
 39 529 m 39 533 43 533 43 529 c 43 525 39 525 39 529 c f
-BT /F1 9 Tf 50 530 Td (Generated: 2026-11-03 22:11:03 UTC) Tj ET
+BT /F1 9 Tf 50 530 Td (Generated: 2026-11-03 22:24:34 UTC) Tj ET
 39 513 m 39 517 43 517 43 513 c 43 509 39 509 39 513 c f
 BT /F1 9 Tf 50 514 Td (Total analyzed issues: 417 \(all exported qualifying scored issues; no research cap\)) Tj ET
 39 497 m 39 501 43 501 43 497 c 43 493 39 493 39 497 c f
@@ -633,7 +633,7 @@ BT /F1 9 Tf 50 170 Td (Only API isPrivate=false sources count; Microsoft/AKS sou
 BT /F1 9 Tf 50 154 Td (Excluded owners: aks, azure, azure-devops, azure-samples, azuread, dotnet, microsoft, microsoft-docker, microsoftdocs, microsoftgraph, powershell,) Tj ET
 BT /F1 9 Tf 50 142 Td (windows, windowsserverdocs; additional owners: HYPOTHESIS_EXCLUDED_OWNERS.) Tj ET
 39 125 m 39 129 43 129 43 125 c 43 121 39 121 39 125 c f
-BT /F1 9 Tf 50 126 Td (Current evidence window \(UTC\): \(2026-10-27T22:11:03.971417+00:00, 2026-11-03T22:11:03.971417+00:00].) Tj ET
+BT /F1 9 Tf 50 126 Td (Current evidence window \(UTC\): \(2026-10-27T22:24:34.265061+00:00, 2026-11-03T22:24:34.265061+00:00].) Tj ET
 39 109 m 39 113 43 113 43 109 c 43 105 39 105 39 109 c f
 BT /F1 9 Tf 50 110 Td (Freshness uses source/comment updatedAt in the trailing 7 days, excluding the lower boundary.) Tj ET
 39 93 m 39 97 43 97 43 93 c 43 89 39 89 39 93 c f
