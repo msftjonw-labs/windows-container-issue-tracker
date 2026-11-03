@@ -14,6 +14,7 @@ STATE_TITLE = "[hypothesis-research-state] Weekly research lifecycle"
 STATE_MARKER = "<!-- windows-container-hypothesis-state:v1 -->"
 STATE_AUTHOR = "github-actions[bot]"
 API_ROOT = "https://api.github.com"
+SAVE_STATE_ENV = "HYPOTHESIS_SAVE_STATE"
 
 
 class HypothesisStateStore:
@@ -105,8 +106,12 @@ def main():
         os.environ.get("GITHUB_REPOSITORY", ""), os.environ.get("GITHUB_TOKEN", ""),
     )
     state = store.load()
-    output = generate_report(previous_state=state, on_success=store.save)
-    print(f"Hypothesis report generated and research state saved: {output}")
+    save = os.environ.get(SAVE_STATE_ENV, "true").strip().lower() != "false"
+    output = generate_report(previous_state=state, on_success=store.save if save else None)
+    if save:
+        print(f"Hypothesis report generated and research state saved: {output}")
+    else:
+        print(f"Hypothesis report generated; research state NOT saved ({SAVE_STATE_ENV}=false): {output}")
 
 
 if __name__ == "__main__":

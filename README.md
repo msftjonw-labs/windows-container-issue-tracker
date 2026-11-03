@@ -77,48 +77,58 @@ The best source from each repository is selected first, then any remaining
 positions are filled by ranked sources from already represented repositories.
 
 The shortlist is a **presentation limit**, not a five-issue limit on research.
-Full scored data is still fetched and evaluated so the three-repository and
-three-week lifecycle rules remain unchanged. The report distinguishes total
-analyzed issues from displayed sources. Frozen decision witness citations remain
-as compact historical references, separate from the five current supporting
-sources; they preserve the basis of earlier weekly decisions.
+Full scored data is still fetched and evaluated so the trial lifecycle rules
+remain unchanged. The report distinguishes total analyzed issues from displayed
+sources. Trial witness citations remain as compact historical references,
+separate from the five current supporting sources; they preserve the basis of
+earlier weekly decisions.
 
-The lifecycle uses UTC calendar weeks, starting Monday:
+The lifecycle uses UTC calendar weeks, starting Monday, and is designed for
+low-activity repositories where all-time rankings rarely change:
 
-- When an existing hypothesis lacks sufficient supporting signals, revise it
-  toward the strongest observed eligible signal. Strength is based primarily on
-  distinct repository reach, not comment volume or Microsoft repository boosts.
-  A replacement with fewer than three repositories is explicitly exploratory,
-  not a qualified or validated hypothesis. No evidence means defer, not invent.
-- A hypothesis qualifies for retention only when similar supporting signals
-  occur in **at least three distinct public repositories**, excluding
+- **Fixed-length trials.** Up to **five hypotheses** are tested at once, one per
+  slot (H1–H5). Each slot tests one signal for **four weekly observations**. Fresh, eligible evidence accumulates
+  across the trial by distinct repository, so slow weekly activity can still
+  reach a result. Historical discovery nominates candidates but never counts as
+  trial evidence.
+- **Explicit outcomes.** At the end of a trial the hypothesis retires as
+  `supported` (at least three supporting repositories and more supporting than
+  contradicting), `contradicted` (contradicting repositories at least equal to
+  supporting), or `inconclusive`. Contradicting evidence (resolution/non-barrier
+  statements) is counted per repository and can refute a hypothesis.
+- **Rotation and cooldown.** A retired signal cannot be retested for **eight
+  weeks**, so the freed slot moves to the next candidate. Candidates rank by
+  fresh supporting repositories this week, then untested before previously
+  tested, then all-time repository reach, unique issue URLs, seed hypotheses,
+  and signal id. With no eligible candidate the slot is deferred, not invented:
+  it shows an untested seed hypothesis or `unassigned`.
+- **Narrower hypotheses.** Besides base signals (for example `networking:dns`),
+  context-qualified signals such as `networking:dns@ltsc2022`,
+  `identity:gmsa@hyperv`, or `tooling:build@kubernetes` are derived from Windows
+  version, isolation, and orchestrator terms in the same paragraph or source
+  title. Overlapping hypotheses (the same base signal, or a seed hypothesis and
+  its aliases) are never tested at the same time.
+- Eligible evidence requires **distinct public repositories**, excluding
   Microsoft-owned sources, including Microsoft and Azure/AKS. Excluded sources
-  remain visible as context but cannot satisfy the threshold. Repository names
-  are normalized and duplicate references cannot inflate the count.
-  A new or revised hypothesis meeting this threshold starts at qualifying
-  week one immediately; historical discovery alone earns no weekly credit.
-- Hold the first successful hypothesis decision for the rest of its UTC week.
-  Manual reruns may show refreshed source evidence but cannot change the frozen
-  weekly decision or add another week to its streak.
-  Frozen decisions retain a bounded set of source witnesses so later reports
-  can still cite the repositories and URLs that justified them.
+  remain visible as context but cannot count. Repository names are normalized
+  and duplicate references cannot inflate the count.
+- Hold the first successful decision for the rest of its UTC week. Manual reruns
+  may show refreshed source evidence but cannot change the frozen weekly
+  decision or advance a trial.
 - At the next weekly observation, evaluate new or updated evidence from the
   preceding seven days, after the prior observation when applicable. This
   includes Tuesday–Sunday updates in the next Monday's run and avoids reusing
-  overlapping observations. Re-reading historical material is not a new
-  confirmation.
-  A missed week or insufficient qualifying evidence breaks the streak; a
-  revision starts a new hypothesis rather than inheriting the old streak.
-- After **three consecutive qualifying weeks for the same hypothesis/signal**,
-  mark its validation cycle complete and stop extending that cycle. Future
-  reports retain the completed outcome for review, not perpetual revalidation.
+  overlapping observations. A missed week contributes no evidence for the gap.
+- The report lists the current trials, a retired-hypothesis log (outcome,
+  repository counts, witnesses, and when the signal is eligible again), and
+  per-signal lifecycle status (testing, cooldown, or candidate).
 
 Public repositories are the independence unit requested here; three repositories
 are not necessarily three independent organizations or customer populations.
 Heuristic area/barrier matching can miss synonyms, context, or negation.
 Source update dates are a freshness proxy, not independent confirmation of when
-a problem happened. Interpret streak completion as the operational research exit
-criterion, not proof of adoption barriers or community-growth causality.
+a problem happened. Interpret trial outcomes as operational research exit
+criteria, not proof of adoption barriers or community-growth causality.
 Set the optional Actions variable `HYPOTHESIS_EXCLUDED_OWNERS` to a
 comma-separated list of additional owners to exclude. This extends, rather
 than replaces, the built-in Microsoft-owned organization exclusions.
@@ -136,6 +146,11 @@ the monitored upstream issues and PRs. Email and action ordering are unchanged.
 Do not edit the machine-readable issue body. Invalid/duplicate state, read/write
 errors, or detected concurrent changes fail reporting visibly instead of silently
 resetting the research. State is saved only after the PDF has been generated.
+Only runs on `main` save state (`HYPOTHESIS_SAVE_STATE`); runs from other
+branches read the state, generate the report, and send email as a dry run.
+Existing v3 (streak-based) state is migrated automatically on the next run:
+running hypotheses become trials that keep their start week and witnesses, and
+completed ones move to the retired log.
 Workflow concurrency serializes updates. A failed save fails action 2 and the
 email reports that failure; retrying must not manufacture another weekly result.
 The managed state issue must remain discoverable (closed issues are supported).

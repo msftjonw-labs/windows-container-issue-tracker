@@ -102,6 +102,8 @@ jobs:
           GITHUB_APP_TOKEN: ${{ steps.generate-app-token.outputs.token }}
           GITHUB_TOKEN: ${{ github.token }}
           HYPOTHESIS_EXCLUDED_OWNERS: ${{ vars.HYPOTHESIS_EXCLUDED_OWNERS }}
+          # Only main persists the shared research state; other branches are dry runs.
+          HYPOTHESIS_SAVE_STATE: ${{ github.ref == 'refs/heads/main' }}
         run: python scripts/hypothesis_state.py
 
       - name: Upload issue snapshot
@@ -149,8 +151,17 @@ jobs:
           fi
           git commit -m "Archive issue snapshot for run ${GITHUB_RUN_ID}" \
             -m "Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
-          git pull --rebase origin "$GITHUB_REF_NAME"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+          # Both archive jobs push to this branch concurrently; rebase and retry.
+          for attempt in 1 2 3 4 5; do
+            git pull --rebase origin "$GITHUB_REF_NAME"
+            if git push origin "HEAD:${GITHUB_REF_NAME}"; then
+              exit 0
+            fi
+            echo "Push attempt ${attempt} failed; retrying."
+            sleep $((attempt * 5))
+          done
+          echo "Failed to push after 5 attempts." >&2
+          exit 1
 
   publish-hypothesis-report:
     needs: score-issues
@@ -181,8 +192,17 @@ jobs:
           fi
           git commit -m "Archive hypothesis report for run ${GITHUB_RUN_ID}" \
             -m "Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
-          git pull --rebase origin "$GITHUB_REF_NAME"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+          # Both archive jobs push to this branch concurrently; rebase and retry.
+          for attempt in 1 2 3 4 5; do
+            git pull --rebase origin "$GITHUB_REF_NAME"
+            if git push origin "HEAD:${GITHUB_REF_NAME}"; then
+              exit 0
+            fi
+            echo "Push attempt ${attempt} failed; retrying."
+            sleep $((attempt * 5))
+          done
+          echo "Failed to push after 5 attempts." >&2
+          exit 1
 
   email-weekly-status:
     needs: score-issues

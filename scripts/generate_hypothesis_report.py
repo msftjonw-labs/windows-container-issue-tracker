@@ -10,10 +10,10 @@ import sys
 
 if __package__:
     from .calculate_scores import _write_pdf, run_graphql
-    from .hypothesis_evolution import evolve, validate_state
+    from .hypothesis_evolution import SLOT_IDS, evolve, upgrade_state
 else:
     from calculate_scores import _write_pdf, run_graphql
-    from hypothesis_evolution import evolve, validate_state
+    from hypothesis_evolution import SLOT_IDS, evolve, upgrade_state
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -334,6 +334,7 @@ def build_report(records, generated_at, source_path, adaptive_lines=()):
 def _report_table_rows(lines):
     headings = (
         "Adaptive weekly hypotheses",
+        "Retired hypotheses (",
         "Original seed hypotheses",
         "Method and limitations",
         "Research limitations",
@@ -362,7 +363,7 @@ def _report_pdf_sections(lines):
     summary.extend(line for line in lines if line.startswith("Total analyzed issues:"))
     hypotheses = {}
     for index, line in enumerate(lines):
-        match = re.match(r"^(H[12]) \[([^]]+)\]\s*(.*)$", line)
+        match = re.match(r"^(H\d+) \[([^]]+)\]\s*(.*)$", line)
         if not match:
             continue
         hypothesis_id, key, title = match.groups()
@@ -384,11 +385,11 @@ def _report_pdf_sections(lines):
         if line.startswith("Total analyzed issues:")
     )
     evidence = {}
-    for hypothesis_id in ("H1", "H2"):
+    for hypothesis_id in SLOT_IDS:
         hypothesis = hypotheses.get(hypothesis_id)
         if hypothesis:
             summary.append(
-                f"Hypothesis {hypothesis_id[-1]}: {hypothesis['title']}; "
+                f"Hypothesis {hypothesis_id[1:]}: {hypothesis['title']}; "
                 f"Decision: {hypothesis['decision']}"
             )
         evidence[hypothesis_id] = []
@@ -441,7 +442,7 @@ def _report_pdf_sections(lines):
 
     sections = [{"type": "bullets", "items": summary}]
     evidence_widths = (105, 100, 275, 190, 100)
-    for hypothesis_id in ("H1", "H2"):
+    for hypothesis_id in SLOT_IDS:
         hypothesis = hypotheses.get(hypothesis_id)
         if not hypothesis:
             continue
@@ -456,7 +457,7 @@ def _report_pdf_sections(lines):
             ])
         sections.append({
             "type": "table",
-            "title": f"Hypothesis {hypothesis_id[-1]} Supporting evidence",
+            "title": f"Hypothesis {hypothesis_id[1:]} Supporting evidence",
             "rows": rows,
             "widths": evidence_widths,
         })
@@ -465,6 +466,7 @@ def _report_pdf_sections(lines):
     detail_sections = (
         ("Adaptive weekly hypotheses (authoritative latest decisions)",
          "Adaptive weekly hypotheses (authoritative latest decisions)"),
+        ("Retired hypotheses", "Retired hypotheses ("),
         ("Researched areas (current evidence, not validated scientific findings)",
          "Researched areas"),
         ("Adaptive method and limitations", "Adaptive method and limitations"),
@@ -496,7 +498,7 @@ def _report_pdf_sections(lines):
             current_items = []
             current_started = True
         else:
-            hypothesis_title = re.match(r"^H([12]) (?=\[)", line)
+            hypothesis_title = re.match(r"^H(\d+) (?=\[)", line)
             current_items.append(
                 f"Hypothesis {hypothesis_title[1]} {line[hypothesis_title.end():]}"
                 if hypothesis_title else line
@@ -518,7 +520,7 @@ def generate_report(scored_path=None, output_directory=None, generated_at=None,
         raise ValueError("Report time must be timezone-aware")
     generated_at = generated_at.astimezone(timezone.utc)
     if previous_state is not None:
-        validate_state(previous_state)
+        previous_state = upgrade_state(previous_state, HYPOTHESES)
     source = Path(scored_path) if scored_path is not None else input_path()
     records = [collect_issue(issue) for issue in load_scored_issues(source)]
     new_state, adaptive_lines = evolve(records, generated_at, previous_state, HYPOTHESES, triage)
