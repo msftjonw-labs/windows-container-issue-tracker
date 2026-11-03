@@ -102,6 +102,8 @@ jobs:
           GITHUB_APP_TOKEN: ${{ steps.generate-app-token.outputs.token }}
           GITHUB_TOKEN: ${{ github.token }}
           HYPOTHESIS_EXCLUDED_OWNERS: ${{ vars.HYPOTHESIS_EXCLUDED_OWNERS }}
+          # Only main persists the shared research state; other branches are dry runs.
+          HYPOTHESIS_SAVE_STATE: ${{ github.ref == 'refs/heads/main' }}
         run: python scripts/hypothesis_state.py
 
       - name: Upload issue snapshot

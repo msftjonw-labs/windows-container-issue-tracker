@@ -128,6 +128,19 @@ class HypothesisStateTests(unittest.TestCase):
             hypothesis_state.main()
         generate.assert_called_once_with(previous_state={"version": 1}, on_success=store.save)
 
+    @patch("scripts.generate_hypothesis_report.generate_report")
+    @patch("scripts.hypothesis_state.HypothesisStateStore")
+    def test_runner_dry_run_reads_state_but_never_saves(self, store_class, generate):
+        store = store_class.return_value
+        store.load.return_value = {"version": 1}
+        with patch.dict("os.environ", {
+            "GITHUB_REPOSITORY": "example/repo", "GITHUB_TOKEN": "test-only-placeholder",
+            "HYPOTHESIS_SAVE_STATE": "False",
+        }, clear=True):
+            hypothesis_state.main()
+        generate.assert_called_once_with(previous_state={"version": 1}, on_success=None)
+        store.save.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

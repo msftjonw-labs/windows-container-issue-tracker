@@ -35,20 +35,143 @@ def evolve(data, now=NOW, previous=None):
 
 
 class WeeklyEvolutionTests(unittest.TestCase):
-    def test_zero_one_two_three_public_repositories_and_first_qualifying_week(self):
+    def test_zero_one_two_three_public_repositories_start_a_trial(self):
         for count in range(4):
             with self.subTest(count=count):
                 state, _ = evolve(records(count))
                 item = state["slots"][0]
                 self.assertEqual(item["fresh_repos"], count)
-                self.assertEqual(item["streak"], int(count >= 3))
-                self.assertEqual(item["status"], "qualifying" if count >= 3 else "provisional" if count else "deferred")
+                self.assertEqual(item["trial_week"], int(bool(count)))
+                self.assertEqual(item["status"], "testing" if count else "deferred")
+                self.assertEqual(len(item["supporting"]), count)
                 next_week = NOW + timedelta(weeks=1)
                 state, _ = evolve(records(count, now=next_week), next_week, state)
-                self.assertEqual(state["slots"][0]["streak"], 2 if count >= 3 else 0)
-                self.assertEqual(state["slots"][0]["status"],
-                                 "qualifying" if count >= 3 else "provisional" if count else "deferred")
+                self.assertEqual(state["slots"][0]["trial_week"], 2 if count else 0)
+                self.assertEqual(len(state["slots"][0]["supporting"]), count)
 
+    def test_trial_accumulates_distinct_fresh_repositories_then_retires_supported(self):
+        state = None
+        for week, owner in enumerate(("a", "b", "c", "d")):
+            now = NOW + timedelta(weeks=week)
+            state, lines = evolve(records(1, owner=owner, now=now), now, state)
+            if week < 3:
+                self.assertEqual(state["slots"][0]["key"], "networking:dns")
+                self.assertEqual(state["slots"][0]["trial_week"], week + 1)
+                self.assertEqual(len(state["slots"][0]["supporting"]), week + 1)
+        retired = state["retired"][0]
+        self.assertEqual((retired["key"], retired["outcome"], retired["supporting"]),
+                         ("networking:dns", "supported", 4))
+        self.assertEqual(retired["started_week"], "2026-W43")
+        self.assertEqual(len(retired["witnesses"]), 3)
+        self.assertEqual(state["slots"][0]["status"], "deferred")
+        self.assertIn("outcome: supported", "\n".join(lines))
+        self.assertIn("cooldown until", "\n".join(lines))
+
+    def test_contradicting_repositories_refute_and_weak_support_is_inconclusive(self):
+        state, _ = evolve(records(1))
+        contrary = "Windows containers DNS issue is resolved."
+        for week in range(1, 4):
+            now = NOW + timedelta(weeks=week)
+            data = records(2, owner="contrary", body=contrary, now=now) if week == 1 else []
+            state, _ = evolve(data, now, state)
+        self.assertEqual(state["retired"][0]["outcome"], "contradicted")
+        self.assertEqual((state["retired"][0]["supporting"], state["retired"][0]["contradicting"]), (1, 2))
+        state, _ = evolve(records(2))
+        for week in range(1, 4):
+            state, _ = evolve([], NOW + timedelta(weeks=week), state)
+        self.assertEqual(state["retired"][0]["outcome"], "inconclusive")
+
+    def test_retired_hypothesis_cools_down_and_slot_rotates_to_new_candidate(self):
+        bodies = (("dns", "DNS resolution fails"), ("auth", "authentication fails"),
+                  ("tool", "build fails"), ("gmsa", "gMSA fails"),
+                  ("runtime", "runtime compatibility fails"), ("size", "image pull fails"))
+
+        def data(now):
+            result = []
+            for rank, (owner, body) in enumerate(bodies):
+                result += records(6 - rank, owner=owner, body=f"Windows containers {body}.", now=now)
+            return result
+        state = None
+        keys = []
+        for week in range(12):
+            now = NOW + timedelta(weeks=week)
+            state, _ = evolve(data(now), now, state)
+            keys.append([slot["key"] for slot in state["slots"]])
+        first = ["networking:dns", "identity:authentication", "tooling:build",
+                 "identity:gmsa", "runtime:compatibility"]
+        self.assertEqual(keys[0], first)
+        self.assertEqual(len(state["slots"]), evolution.SLOT_COUNT)
+        self.assertEqual(keys[2], keys[0])
+        self.assertEqual(keys[3][0], "images:size")
+        self.assertFalse(set(first) & set(keys[3] + keys[6] + keys[10]))
+        self.assertTrue(set(first) <= set(keys[11]))
+        self.assertEqual([item["outcome"] for item in state["retired"][:5]], ["supported"] * 4 + ["inconclusive"])
+
+    def test_overlapping_context_signal_is_not_tested_concurrently(self):
+        body = "Windows containers DNS resolution fails on Kubernetes."
+        state, _ = evolve(records(body=body))
+        self.assertEqual(state["slots"][0]["key"], "networking:dns")
+        self.assertEqual(state["slots"][1]["status"], "deferred")
+        self.assertFalse(any(slot["key"].startswith("networking:dns@") for slot in state["slots"]))
+        state, _ = evolve(records(body=body) + records(
+            2, owner="auth", body="Windows containers authentication fails."))
+        self.assertEqual([slot["key"] for slot in state["slots"]][:2],
+                         ["networking:dns", "identity:authentication"])
+        bad = copy.deepcopy(state)
+        bad["slots"][1].update(key="networking:dns@kubernetes", area="networking",
+                               title=evolution._title("networking:dns@kubernetes", ()))
+        bad["history"][-1]["slots"][1]["key"] = "networking:dns@kubernetes"
+        with self.assertRaises(ValueError):
+            evolution.validate_state(bad)
+
+    def test_context_qualified_signals_create_narrower_hypotheses(self):
+        data = records(body="Windows containers DNS resolution fails on LTSC 2022 with Hyper-V.")
+        data[0]["issue"]["title"] = "Windows containers on containerd"
+        signals = evolution._signals(data, NOW, report.triage, NOW - timedelta(days=7))
+        keys = {s["key"] for s in signals if s["repo"] == "community/repo0"}
+        self.assertTrue({"networking:dns", "networking:dns@ltsc2022", "networking:dns@hyperv",
+                         "networking:dns@containerd"} <= keys)
+        self.assertNotIn("networking:dns@containerd",
+                         {s["key"] for s in signals if s["repo"] == "community/repo1"})
+        self.assertEqual(evolution._title("networking:dns@ltsc2022", ()),
+                         "Windows container DNS resolution failures on Windows Server 2022/LTSC 2022")
+        state = None
+        for week in range(4):
+            now = NOW + timedelta(weeks=week)
+            state, lines = evolve(records(body=data[1]["issue"]["body"], now=now), now, state)
+        self.assertEqual(state["slots"][0]["key"], "networking:dns@hyperv")
+        self.assertIn("Context qualifiers:", "\n".join(lines))
+
+    def test_v3_state_migrates_running_hypotheses_into_trials(self):
+        weeks = [(NOW - timedelta(weeks=2 - i)) for i in range(3)]
+        witness = dict(repo="kubernetes/kubernetes", url="https://github.com/kubernetes/kubernetes/issues/1",
+                       date=weeks[0].isoformat(), source="issue")
+        def slots(fresh):
+            return [dict(id="H1", key="networking:connectivity", title="Windows container network connectivity barriers",
+                         area="networking", status="provisional", streak=0, fresh_repos=fresh,
+                         witnesses=[witness] if fresh else []),
+                    dict(id="H2", key="licensing:cost", title="Windows container licensing/cost barriers",
+                         area="licensing/cost", status="completed", streak=3, fresh_repos=3,
+                         witnesses=[witness])]
+        history = [dict(week=evolution._week(w), observed_at=w.isoformat(), slots=slots(int(i == 0)))
+                   for i, w in enumerate(weeks)]
+        old = dict(version=3, observed_week=history[-1]["week"], observed_at=weeks[-1].isoformat(),
+                   slots=history[-1]["slots"], history=history,
+                   completed=[{"id": "H2", "key": "licensing:cost"}])
+        state = evolution.upgrade_state(copy.deepcopy(old), report.HYPOTHESES)
+        self.assertEqual(state["version"], evolution.VERSION)
+        first = state["slots"][0]
+        self.assertEqual((first["status"], first["trial_week"], first["started_week"], first["supporting"]),
+                         ("testing", 3, "2026-W41", ["kubernetes/kubernetes"]))
+        self.assertEqual([slot["key"] for slot in state["slots"][1:]],
+                         ["original:h1", "original:h2", "unassigned", "unassigned"])
+        self.assertEqual(len(state["history"][0]["slots"]), evolution.SLOT_COUNT)
+        self.assertEqual(state["retired"][0]["key"], "licensing:cost")
+        self.assertEqual(state["retired"][0]["outcome"], "inconclusive")
+        state, _ = evolve([], NOW + timedelta(weeks=1), old)
+        self.assertEqual(state["retired"][-1]["key"], "networking:connectivity")
+        with self.assertRaises(ValueError):
+            evolution.upgrade_state(dict(old, slots=None), report.HYPOTHESES)
     def test_microsoft_azure_case_known_and_configured_exclusions(self):
         for owner in ("MiCroSoft", "AZURE", "AKS", "dotnet", "PowerShell"):
             with self.subTest(owner=owner):
@@ -120,11 +243,15 @@ class WeeklyEvolutionTests(unittest.TestCase):
         self.assertIn("Area totals are not qualifications or validations", text)
         self.assertIn("networking:dns: eligible supporting repositories=2; fresh=2", text)
         self.assertIn("networking:connectivity: eligible supporting repositories=2; fresh=2", text)
-        self.assertEqual(text.count("current >=3 fresh repository threshold: NOT MET"), 2)
+        self.assertIn("networking:dns: eligible supporting repositories=2; fresh=2; contradicting=3; "
+                      "lifecycle: testing in H2.", text)
+        self.assertIn("networking:connectivity: eligible supporting repositories=2; fresh=2; contradicting=0; "
+                      "lifecycle: testing in H1.", text)
         self.assertNotIn("Supporting repositories:", text)
         self.assertNotIn("Fresh supporting repositories:", text)
         self.assertIn("area: networking", text)
-        self.assertTrue(all(s["status"] == "provisional" for s in state["slots"]))
+        self.assertTrue(all(s["status"] == "testing" for s in state["slots"][:2]))
+        self.assertTrue(all(s["status"] == "deferred" for s in state["slots"][2:]))
 
     def test_strongest_repo_ranking_not_comments_or_scores(self):
         data = records(3) + records(2, body="Windows containers authentication fails.", owner="other")
@@ -134,7 +261,7 @@ class WeeklyEvolutionTests(unittest.TestCase):
                 "updatedAt": NOW.isoformat(),
             })
         state, _ = evolve(data)
-        self.assertEqual([s["key"] for s in state["slots"]], ["networking:dns", "identity:authentication"])
+        self.assertEqual([s["key"] for s in state["slots"]][:2], ["networking:dns", "identity:authentication"])
 
     def test_issue_count_then_stable_signal_id_break_ties(self):
         data = records(2) + records(2, body="Windows containers authentication fails.", owner="other")
@@ -144,21 +271,18 @@ class WeeklyEvolutionTests(unittest.TestCase):
         data.append(extra)
         self.assertEqual(evolve(data)[0]["slots"][0]["key"], "networking:dns")
 
-    def test_originals_tracked_separately_and_unsupported_original_replaced(self):
+    def test_seed_hypothesis_wins_ties_and_excludes_overlapping_alias(self):
         data = records(body="Nano Server missing APIs limit developer testing.")
         state, _ = evolve(data)
-        self.assertEqual(state["slots"][1]["key"], "original:h2")
-        self.assertEqual(state["slots"][0]["key"], "original:h1")
-        self.assertEqual(state["slots"][0]["status"], "deferred")
-        self.assertEqual(state["slots"][1]["title"], report.HYPOTHESES[1])
-        self.assertEqual(state["slots"][1]["status"], "qualifying")
-        self.assertEqual(state["slots"][1]["streak"], 1)
+        self.assertEqual(state["slots"][0]["key"], "original:h2")
+        self.assertEqual(state["slots"][0]["title"], report.HYPOTHESES[1])
+        self.assertEqual(state["slots"][0]["status"], "testing")
+        self.assertEqual(state["slots"][1]["key"], "original:h1")
+        self.assertEqual(state["slots"][1]["status"], "deferred")
         state, _ = evolve(records(1))
         self.assertEqual(state["slots"][0]["key"], "networking:dns")
-        self.assertEqual(state["slots"][0]["status"], "provisional")
         self.assertEqual(state["slots"][1]["status"], "deferred")
-
-    def test_fresh_originals_qualify_first_observation_but_future_sources_do_not(self):
+    def test_fresh_originals_start_trials_but_future_or_stale_sources_add_nothing(self):
         bodies = (
             "Windows containers development licensing cost is a barrier to community adoption.",
             "Nano Server missing APIs limit developer testing.",
@@ -166,33 +290,19 @@ class WeeklyEvolutionTests(unittest.TestCase):
         for index, body in enumerate(bodies):
             with self.subTest(original=index + 1):
                 state, _ = evolve(records(body=body))
-                slot = state["slots"][index]
+                slot = state["slots"][0]
                 self.assertEqual(slot["key"], f"original:h{index + 1}")
-                self.assertEqual(slot["status"], "qualifying")
-                self.assertEqual(slot["streak"], 1)
+                self.assertEqual((slot["status"], slot["fresh_repos"]), ("testing", 3))
                 for offset in (timedelta(hours=1), timedelta(weeks=1), -timedelta(weeks=1)):
                     state, _ = evolve(records(body=body, now=NOW + offset))
-                    self.assertEqual(state["slots"][index]["streak"], 0)
-                    self.assertEqual(state["slots"][index]["fresh_repos"], 0)
-
+                    self.assertEqual(state["slots"][0]["fresh_repos"], 0)
+                    self.assertEqual(state["slots"][0]["supporting"], [])
     def test_no_evidence_defers_without_invention(self):
         state, lines = evolve(records(body="Routine maintenance"))
-        self.assertEqual([s["key"] for s in state["slots"]], ["original:h1", "original:h2"])
+        self.assertEqual([s["key"] for s in state["slots"]],
+                         ["original:h1", "original:h2", "unassigned", "unassigned", "unassigned"])
         self.assertTrue(all(s["status"] == "deferred" for s in state["slots"]))
         self.assertIn("No relevant evidence", "\n".join(lines))
-
-    def test_original_with_one_or_two_sources_is_replaced_not_retained(self):
-        body = "Nano Server missing APIs limit developer testing."
-        for count in (1, 2):
-            state, _ = evolve(records(count, body=body))
-            self.assertEqual(state["slots"][0]["key"], "images:nano-api")
-            self.assertEqual(state["slots"][0]["status"], "provisional")
-            self.assertEqual(state["slots"][1]["status"], "deferred")
-        stale = records(body=body, now=NOW - timedelta(weeks=1))
-        state, _ = evolve(stale)
-        self.assertEqual(state["slots"][0]["key"], "images:nano-api")
-        self.assertEqual(state["slots"][0]["status"], "provisional")
-        self.assertEqual(state["slots"][0]["streak"], 0)
 
     def test_same_week_is_frozen_but_report_evidence_current(self):
         state, _ = evolve(records())
@@ -204,22 +314,18 @@ class WeeklyEvolutionTests(unittest.TestCase):
         self.assertIn("identity:authentication", "\n".join(lines))
         self.assertIn("frozen decision", "\n".join(lines))
 
-    def test_frozen_and_completed_witnesses_survive_absent_current_evidence(self):
+    def test_frozen_and_retired_witnesses_survive_absent_current_evidence(self):
         state, _ = evolve(records(4))
         self.assertEqual(len(state["slots"][0]["witnesses"]), 3)
         frozen, lines = evolve([], NOW + timedelta(hours=1), state)
-        self.assertEqual(frozen["slots"][0]["witnesses"], state["slots"][0]["witnesses"])
+        self.assertEqual(frozen, state)
         self.assertIn(state["slots"][0]["witnesses"][0]["url"], "\n".join(lines))
-        for week in range(1, 3):
-            now = NOW + timedelta(weeks=week)
-            state, _ = evolve(records(now=now), now, state)
         witnesses = copy.deepcopy(state["slots"][0]["witnesses"])
-        completed, lines = evolve([], NOW + timedelta(weeks=3), state)
-        self.assertEqual(completed["slots"][0]["witnesses"], witnesses)
-        self.assertEqual(completed["slots"][0]["status"], "completed")
+        for week in range(1, 5):
+            state, lines = evolve([], NOW + timedelta(weeks=week), state)
+        self.assertEqual(state["retired"][0]["witnesses"], witnesses)
         self.assertIn(witnesses[0]["url"], "\n".join(lines))
-        self.assertIn("Frozen decision witnesses", "\n".join(lines))
-
+        self.assertIn("Trial witnesses", "\n".join(lines))
     def test_witness_types_preserve_actual_pr_comment_provenance(self):
         data = records(1, owner="microsoft", body="Routine maintenance")
         pr = records(1)[0]["issue"]
@@ -238,49 +344,25 @@ class WeeklyEvolutionTests(unittest.TestCase):
         self.assertEqual(witness["url"], pr["comments"]["nodes"][0]["url"])
         self.assertEqual(set(witness), {"repo", "url", "date", "source"})
 
-    def test_three_consecutive_fresh_weeks_exit_and_never_increment_again(self):
-        state, _ = evolve(records())
-        self.assertEqual(state["slots"][0]["streak"], 1)
-        for week in range(1, 3):
-            now = NOW + timedelta(weeks=week)
-            state, _ = evolve(records(now=now), now, state)
-            self.assertEqual(state["slots"][0]["streak"], week + 1)
-        self.assertEqual(state["slots"][0]["status"], "completed")
-        now = NOW + timedelta(weeks=4)
-        final, lines = evolve([], now, state)
-        self.assertEqual(final["slots"][0], state["slots"][0])
-        self.assertEqual(final["completed"], [{"id": "H1", "key": "networking:dns"}])
-        self.assertIn("reports continue", "\n".join(lines))
-
-    def test_stale_repeats_do_not_exit(self):
-        state, _ = evolve(records())
-        for week in range(1, 5):
-            now = NOW + timedelta(weeks=week)
-            state, _ = evolve(records(), now, state)
-            self.assertEqual(state["slots"][0]["streak"], 0)
-            self.assertEqual(state["slots"][0]["fresh_repos"], 0)
-            self.assertEqual(state["slots"][0]["status"], "provisional")
-
-    def test_missing_week_resets_and_iso_year_rollover_is_consecutive(self):
+    def test_stale_repeats_add_no_trial_evidence(self):
+        stale = records(now=NOW - timedelta(weeks=2))
+        state, _ = evolve(stale)
+        for week in range(1, 4):
+            state, _ = evolve(stale, NOW + timedelta(weeks=week), state)
+            if week < 3:
+                self.assertEqual(state["slots"][0]["supporting"], [])
+                self.assertEqual(state["slots"][0]["fresh_repos"], 0)
+        self.assertEqual(state["retired"][0]["outcome"], "inconclusive")
+        self.assertEqual(state["retired"][0]["supporting"], 0)
+    def test_missing_week_counts_observations_and_iso_year_rollover(self):
         start = datetime(2026, 12, 28, 12, tzinfo=timezone.utc)
         state, _ = evolve(records(now=start), start)
-        for offset, expected in ((1, 2), (3, 1), (4, 2)):
+        for offset, expected in ((1, 2), (3, 3)):
             now = start + timedelta(weeks=offset)
             state, _ = evolve(records(now=now), now, state)
-            self.assertEqual(state["slots"][0]["streak"], expected)
+            self.assertEqual(state["slots"][0]["trial_week"], expected)
+        self.assertEqual(state["slots"][0]["started_week"], "2026-W53")
         self.assertTrue(state["observed_week"].startswith("2027-"))
-
-    def test_revision_resets_previous_streak_but_current_fresh_week_qualifies(self):
-        state, _ = evolve(records())
-        next_week = NOW + timedelta(weeks=1)
-        state, _ = evolve(records(now=next_week), next_week, state)
-        self.assertEqual(state["slots"][0]["streak"], 2)
-        now = NOW + timedelta(weeks=2)
-        state, _ = evolve(records(body="Windows containers authentication fails.", now=now), now, state)
-        self.assertEqual(state["slots"][0]["key"], "identity:authentication")
-        self.assertEqual(state["slots"][0]["streak"], 1)
-        self.assertEqual(state["slots"][0]["status"], "qualifying")
-
     def test_fresh_comment_uses_own_date_not_parent_update(self):
         data = records(now=NOW - timedelta(weeks=3))
         for item in data:
@@ -301,13 +383,13 @@ class WeeklyEvolutionTests(unittest.TestCase):
             item["issue"]["updatedAt"] = (prior + timedelta(days=offset)).isoformat()
         state, lines = evolve(data, monday, previous)
         self.assertEqual(state["slots"][0]["fresh_repos"], 3)
-        self.assertEqual(state["slots"][0]["streak"], 1)
+        self.assertEqual(len(state["slots"][0]["supporting"]), 3)
         self.assertEqual(state["observed_at"], monday.isoformat())
         self.assertEqual(state["history"][-1]["observed_at"], monday.isoformat())
         self.assertIn("trailing 7 days", "\n".join(lines))
         repeated, _ = evolve(data, monday + timedelta(weeks=1), state)
         self.assertEqual(repeated["slots"][0]["fresh_repos"], 0)
-        self.assertEqual(repeated["slots"][0]["streak"], 0)
+        self.assertEqual(repeated["slots"][0]["trial_week"], 2)
 
     def test_observed_at_excludes_overlap_and_exact_prior_boundary(self):
         prior = datetime(2026, 10, 19, 22, tzinfo=timezone.utc)
@@ -318,29 +400,36 @@ class WeeklyEvolutionTests(unittest.TestCase):
             item["issue"]["updatedAt"] = when.isoformat()
         state, _ = evolve(data, monday, previous)
         self.assertEqual(state["slots"][0]["fresh_repos"], 1)
-        self.assertEqual(state["slots"][0]["streak"], 0)
+        self.assertEqual(previous["slots"][0]["fresh_repos"], 3)
+        self.assertEqual(len(state["slots"][0]["supporting"]), 3)
+        self.assertEqual(state["slots"][0]["trial_week"], 2)
         # The first observation is immutable even if a same-week rerun is later.
         same_week, _ = evolve(records(now=monday + timedelta(hours=1)),
                               monday + timedelta(hours=1), state)
         self.assertEqual(same_week["observed_at"], monday.isoformat())
 
-    def test_missing_week_uses_only_trailing_seven_days_and_resets_streak(self):
-        state, _ = evolve(records())
+    def test_missing_week_uses_only_trailing_seven_days(self):
+        state, _ = evolve(records(1))
         second = NOW + timedelta(weeks=1)
-        state, _ = evolve(records(now=second), second, state)
-        self.assertEqual(state["slots"][0]["streak"], 2)
+        state, _ = evolve(records(1, now=second), second, state)
+        self.assertEqual(state["slots"][0]["trial_week"], 2)
         fourth = NOW + timedelta(weeks=3)
         old, _ = evolve(records(now=second + timedelta(days=1)), fourth, state)
         self.assertEqual(old["slots"][0]["fresh_repos"], 0)
         current, _ = evolve(records(now=fourth - timedelta(days=6)), fourth, state)
         self.assertEqual(current["slots"][0]["fresh_repos"], 3)
-        self.assertEqual(current["slots"][0]["streak"], 1)
+        self.assertEqual(current["slots"][0]["trial_week"], 3)
 
     def test_no_slot_collision_when_only_one_existing_candidate_is_available(self):
         state, _ = evolve(records() + records(2, body="Windows containers authentication fails.", owner="other"))
         now = NOW + timedelta(weeks=1)
         state, _ = evolve(records(1, body="Windows containers authentication fails.", now=now), now, state)
-        self.assertEqual(len({s["key"] for s in state["slots"]}), 2)
+        keys = [s["key"] for s in state["slots"] if s["key"] != "unassigned"]
+        self.assertEqual(len(keys), len(set(keys)))
+        bad = copy.deepcopy(state)
+        bad["slots"][1]["key"] = bad["slots"][0]["key"]
+        with self.assertRaises(ValueError):
+            evolution.validate_state(bad)
 
     def test_state_json_bounded_history_and_validation(self):
         state = None
@@ -351,8 +440,8 @@ class WeeklyEvolutionTests(unittest.TestCase):
         self.assertLess(len(json.dumps(state)), 20000)
         self.assertEqual(evolution.validate_state(json.loads(json.dumps(state))), state)
         mutations = [
-            ("version", True), ("version", 4), ("observed_week", "2026-W99"),
-            ("observed_week", "2026-10-23"), ("history", []), ("completed", [{}]),
+            ("version", True), ("version", 3), ("version", 5), ("observed_week", "2026-W99"),
+            ("observed_week", "2026-10-23"), ("history", []), ("retired", [{}]),
             ("observed_at", None), ("observed_at", "2026-10-23T12:00:00"),
             ("observed_at", "2020-01-01T12:00:00Z"),
         ]
@@ -361,8 +450,10 @@ class WeeklyEvolutionTests(unittest.TestCase):
             bad[field] = value
             with self.subTest(field=field, value=value), self.assertRaises(ValueError):
                 evolution.validate_state(bad)
-        for field, value in (("id", "H3"), ("key", "anything"), ("status", "validated"),
-                             ("streak", -1), ("fresh_repos", True), ("streak", 3)):
+        for field, value in (("id", "H3"), ("key", "anything"), ("key", "networking:dns@mars"),
+                             ("status", "validated"), ("trial_week", -1), ("trial_week", 4),
+                             ("fresh_repos", True), ("supporting", ["b/b", "a/a"]),
+                             ("supporting", [f"o/r{i}" for i in range(11)])):
             bad = copy.deepcopy(state)
             bad["slots"][0][field] = value
             with self.subTest(field=field), self.assertRaises(ValueError):
@@ -370,26 +461,42 @@ class WeeklyEvolutionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             evolve([], NOW, state)
 
-    def test_maximum_slim_witness_state_stays_under_issue_body_budget(self):
+    def test_maximum_bounded_state_stays_under_issue_body_budget(self):
         state = None
         for week in range(12):
             now = NOW + timedelta(weeks=week)
             state, _ = evolve(records(1), now, state)
-        for entry in state["history"]:
-            for item in entry["slots"]:
-                item.update(title="t" * 400, status="qualifying", streak=1, fresh_repos=3)
-                item["witnesses"] = []
-                for index in range(3):
-                    repo = f"owner{index}/" + "r" * 153
-                    url = f"https://github.com/{repo}/issues/1#"
-                    url += "x" * (240 - len(url))
-                    item["witnesses"].append(dict(
-                        repo=repo, url=url, date=entry["observed_at"], source="pull_request_comment"))
-        state["slots"] = copy.deepcopy(state["history"][-1]["slots"])
+
+        def witnesses(date):
+            result = []
+            for index in range(3):
+                repo = f"owner{index}/" + "r" * 153
+                url = f"https://github.com/{repo}/issues/1#"
+                result.append(dict(repo=repo, url=url + "x" * (240 - len(url)),
+                                   date=date, source="pull_request_comment"))
+            return result
+        repos = sorted(f"owner{index}/" + "r" * 153 for index in range(10))
+        keys = ("identity:authentication@ltsc2025", "tooling:build@containerd", "networking:connectivity@kubernetes",
+                "runtime:compatibility@hyperv", "images:size@ltsc2019")
+        for item, key in zip(state["slots"], keys):
+            item.update(key=key)
+            item.update(title=evolution._title(item["key"], ()), area=evolution._area(item["key"]),
+                        status="testing", trial_week=3, started_week=state["history"][-3]["week"],
+                        fresh_repos=1000000, supporting=repos, contradicting=repos,
+                        witnesses=witnesses(state["observed_at"]))
+        state["history"][-1]["slots"] = [{f: item[f] for f in evolution.SLIM_FIELDS} for item in state["slots"]]
+        state["retired"] = [dict(id="H1", key="identity:authentication@ltsc2025", outcome="contradicted",
+                                 started_week=state["history"][0]["week"],
+                                 ended_week=state["history"][0]["week"], supporting=10, contradicting=10,
+                                 witnesses=witnesses(state["history"][0]["observed_at"]))] * 16
         evolution.validate_state(state)
         self.assertLess(len(json.dumps(state, separators=(",", ":"))), 59000)
         bad = copy.deepcopy(state)
         bad["slots"][0]["witnesses"][0]["date"] = "invalid"
+        with self.assertRaises(ValueError):
+            evolution.validate_state(bad)
+        bad = copy.deepcopy(state)
+        bad["retired"].append(bad["retired"][0])
         with self.assertRaises(ValueError):
             evolution.validate_state(bad)
 
@@ -549,8 +656,8 @@ class SourceShowcaseTests(unittest.TestCase):
         for item in data[:6]:
             self.labels(item, "p0")
         state, lines = evolve(data)
-        self.assertEqual([s["fresh_repos"] for s in state["slots"]], [6, 3])
-        self.assertEqual([s["status"] for s in state["slots"]], ["qualifying", "qualifying"])
+        self.assertEqual([s["fresh_repos"] for s in state["slots"]], [6, 3, 0, 0, 0])
+        self.assertEqual([s["status"] for s in state["slots"]], ["testing", "testing"] + ["deferred"] * 3)
         selected, total = self.select(data, (s["key"] for s in state["slots"]))
         self.assertEqual(total, 9)
         self.assertFalse(any(s["repo"].startswith("other/") for s in selected))
@@ -603,7 +710,7 @@ class SourceShowcaseTests(unittest.TestCase):
 class PersistenceBoundaryTests(unittest.TestCase):
     def test_authoritative_completed_decision_and_areas_precede_seed_reference_no_appendix(self):
         state = None
-        for week in range(3):
+        for week in range(4):
             now = NOW + timedelta(weeks=week)
             data = records(now=now)
             state, _ = evolve(data, now, state)
@@ -613,7 +720,7 @@ class PersistenceBoundaryTests(unittest.TestCase):
             report.generate_report(generated_at=now, previous_state=state)
         text = "\n".join(writer.call_args.args[0])
         self.assertLess(text.index("Generated:"), text.index("Adaptive weekly hypotheses"))
-        self.assertLess(text.index("Decision: completed"), text.index("Researched areas"))
+        self.assertLess(text.index("outcome: supported"), text.index("Researched areas"))
         self.assertLess(text.index("Researched areas"), text.index("Adaptive method and limitations"))
         self.assertLess(text.index("Researched areas"), text.index("Original seed hypotheses"))
         self.assertNotIn("Issue and linked PR appendix", text)
