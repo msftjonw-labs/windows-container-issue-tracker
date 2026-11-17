@@ -1,0 +1,1229 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [4 0 R 6 0 R 8 0 R 10 0 R 12 0 R] /Count 5 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 595] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>
+endobj
+5 0 obj
+<< /Length 7891 >>
+stream
+0 G
+BT /F1 12 Tf 36 545 Td (Windows Container Issue Snapshot) Tj ET
+39 521 m 39 525 43 525 43 521 c 43 517 39 517 39 521 c f
+BT /F1 9 Tf 50 522 Td (Generated: 2026-11-17 00:42:54 UTC) Tj ET
+39 505 m 39 509 43 509 43 505 c 43 501 39 501 39 505 c f
+BT /F1 9 Tf 50 506 Td (ProjectV2: https://github.com/orgs/msftjonw-labs/projects/1) Tj ET
+39 489 m 39 493 43 493 43 489 c 43 485 39 485 39 489 c f
+BT /F1 9 Tf 50 490 Td (Items: 81) Tj ET
+BT /F1 11 Tf 36 474 Td (Project items) Tj ET
+0.88 g 36 447 770 18 re f
+0 g
+0.45 G 0.6 w 36 447 770 18 re S
+36 447 110 18 re S
+BT /F1 8 Tf 42 452 Td (Repository) Tj ET
+146 447 55 18 re S
+BT /F1 8 Tf 152 452 Td (Issue) Tj ET
+201 447 260 18 re S
+BT /F1 8 Tf 207 452 Td (Title) Tj ET
+461 447 85 18 re S
+BT /F1 8 Tf 467 452 Td (Priority score) Tj ET
+546 447 260 18 re S
+BT /F1 8 Tf 552 452 Td (URL) Tj ET
+0 g
+0.45 G 0.6 w 36 419 770 28 re S
+36 419 110 28 re S
+BT /F1 8 Tf 42 434 Td (moby/moby) Tj ET
+146 419 55 28 re S
+BT /F1 8 Tf 152 434 Td (#25982) Tj ET
+201 419 260 28 re S
+BT /F1 8 Tf 207 434 Td (Unable to react to graceful shutdown of \(Windows\)) Tj ET
+BT /F1 8 Tf 207 424 Td (container) Tj ET
+461 419 85 28 re S
+BT /F1 8 Tf 467 434 Td (220.0) Tj ET
+546 419 260 28 re S
+BT /F1 8 Tf 552 434 Td (https://github.com/moby/moby/issues/25982) Tj ET
+0 g
+0.45 G 0.6 w 36 401 770 18 re S
+36 401 110 18 re S
+BT /F1 8 Tf 42 406 Td (moby/moby) Tj ET
+146 401 55 18 re S
+BT /F1 8 Tf 152 406 Td (#39191) Tj ET
+201 401 260 18 re S
+BT /F1 8 Tf 207 406 Td (Windows Server 2019 publish ports in swarm not working) Tj ET
+461 401 85 18 re S
+BT /F1 8 Tf 467 406 Td (83.0) Tj ET
+546 401 260 18 re S
+BT /F1 8 Tf 552 406 Td (https://github.com/moby/moby/issues/39191) Tj ET
+0 g
+0.45 G 0.6 w 36 363 770 38 re S
+36 363 110 38 re S
+BT /F1 8 Tf 42 388 Td (moby/moby) Tj ET
+146 363 55 38 re S
+BT /F1 8 Tf 152 388 Td (#50369) Tj ET
+201 363 260 38 re S
+BT /F1 8 Tf 207 388 Td (Docker for windows doesn't work on BitLocker encrypted) Tj ET
+BT /F1 8 Tf 207 378 Td (C:\\ drives, since version 27.5 \(error:) Tj ET
+BT /F1 8 Tf 207 368 Td (FSCTL_EXTEND_VOLUME, The media is write protected\)) Tj ET
+461 363 85 38 re S
+BT /F1 8 Tf 467 388 Td (29.0) Tj ET
+546 363 260 38 re S
+BT /F1 8 Tf 552 388 Td (https://github.com/moby/moby/issues/50369) Tj ET
+0 g
+0.45 G 0.6 w 36 345 770 18 re S
+36 345 110 18 re S
+BT /F1 8 Tf 42 350 Td (moby/moby) Tj ET
+146 345 55 18 re S
+BT /F1 8 Tf 152 350 Td (#43304) Tj ET
+201 345 260 18 re S
+BT /F1 8 Tf 207 350 Td (Building from source on Windows?) Tj ET
+461 345 85 18 re S
+BT /F1 8 Tf 467 350 Td (29.0) Tj ET
+546 345 260 18 re S
+BT /F1 8 Tf 552 350 Td (https://github.com/moby/moby/issues/43304) Tj ET
+0 g
+0.45 G 0.6 w 36 327 770 18 re S
+36 327 110 18 re S
+BT /F1 8 Tf 42 332 Td (moby/moby) Tj ET
+146 327 55 18 re S
+BT /F1 8 Tf 152 332 Td (#50402) Tj ET
+201 327 260 18 re S
+BT /F1 8 Tf 207 332 Td (flaky test: `TestExecResize` on Windows) Tj ET
+461 327 85 18 re S
+BT /F1 8 Tf 467 332 Td (23.0) Tj ET
+546 327 260 18 re S
+BT /F1 8 Tf 552 332 Td (https://github.com/moby/moby/issues/50402) Tj ET
+0 g
+0.45 G 0.6 w 36 299 770 28 re S
+36 299 110 28 re S
+BT /F1 8 Tf 42 314 Td (moby/moby) Tj ET
+146 299 55 28 re S
+BT /F1 8 Tf 152 314 Td (#48201) Tj ET
+201 299 260 28 re S
+BT /F1 8 Tf 207 314 Td (TCP connections stall in Docker containers in WSL2 using) Tj ET
+BT /F1 8 Tf 207 304 Td (mirrored networking mode) Tj ET
+461 299 85 28 re S
+BT /F1 8 Tf 467 314 Td (21.0) Tj ET
+546 299 260 28 re S
+BT /F1 8 Tf 552 314 Td (https://github.com/moby/moby/issues/48201) Tj ET
+0 g
+0.45 G 0.6 w 36 271 770 28 re S
+36 271 110 28 re S
+BT /F1 8 Tf 42 286 Td (moby/moby) Tj ET
+146 271 55 28 re S
+BT /F1 8 Tf 152 286 Td (#42743) Tj ET
+201 271 260 28 re S
+BT /F1 8 Tf 207 286 Td (Flaky test: TestBuildWCOWSandboxSize \(insufficient disk) Tj ET
+BT /F1 8 Tf 207 276 Td (space?\)) Tj ET
+461 271 85 28 re S
+BT /F1 8 Tf 467 286 Td (19.0) Tj ET
+546 271 260 28 re S
+BT /F1 8 Tf 552 286 Td (https://github.com/moby/moby/issues/42743) Tj ET
+0 g
+0.45 G 0.6 w 36 243 770 28 re S
+36 243 110 28 re S
+BT /F1 8 Tf 42 258 Td (moby/moby) Tj ET
+146 243 55 28 re S
+BT /F1 8 Tf 152 258 Td (#49334) Tj ET
+201 243 260 28 re S
+BT /F1 8 Tf 207 258 Td (Creating container on Windows Server 2022 fails with) Tj ET
+BT /F1 8 Tf 207 248 Td (transparent network - EOF: 125) Tj ET
+461 243 85 28 re S
+BT /F1 8 Tf 467 258 Td (19.0) Tj ET
+546 243 260 28 re S
+BT /F1 8 Tf 552 258 Td (https://github.com/moby/moby/issues/49334) Tj ET
+0 g
+0.45 G 0.6 w 36 225 770 18 re S
+36 225 110 18 re S
+BT /F1 8 Tf 42 230 Td (moby/buildkit) Tj ET
+146 225 55 18 re S
+BT /F1 8 Tf 152 230 Td (#4282) Tj ET
+201 225 260 18 re S
+BT /F1 8 Tf 207 230 Td (dockerfile: carriage return conflicting with heredocs) Tj ET
+461 225 85 18 re S
+BT /F1 8 Tf 467 230 Td (35.0) Tj ET
+546 225 260 18 re S
+BT /F1 8 Tf 552 230 Td (https://github.com/moby/buildkit/issues/4282) Tj ET
+0 g
+0.45 G 0.6 w 36 197 770 28 re S
+36 197 110 28 re S
+BT /F1 8 Tf 42 212 Td (moby/buildkit) Tj ET
+146 197 55 28 re S
+BT /F1 8 Tf 152 212 Td (#5678) Tj ET
+201 197 260 28 re S
+BT /F1 8 Tf 207 212 Td (WCOW: need support for `llb.AddMount` and `RUN --mount`) Tj ET
+BT /F1 8 Tf 207 202 Td (for WCOW) Tj ET
+461 197 85 28 re S
+BT /F1 8 Tf 467 212 Td (5.0) Tj ET
+546 197 260 28 re S
+BT /F1 8 Tf 552 212 Td (https://github.com/moby/buildkit/issues/5678) Tj ET
+0 g
+0.45 G 0.6 w 36 179 770 18 re S
+36 179 110 18 re S
+BT /F1 8 Tf 42 184 Td (moby/buildkit) Tj ET
+146 179 55 18 re S
+BT /F1 8 Tf 152 184 Td (#5603) Tj ET
+201 179 260 18 re S
+BT /F1 8 Tf 207 184 Td (WCOW: RUN with bind/cache mounts) Tj ET
+461 179 85 18 re S
+BT /F1 8 Tf 467 184 Td (Not set) Tj ET
+546 179 260 18 re S
+BT /F1 8 Tf 552 184 Td (https://github.com/moby/buildkit/issues/5603) Tj ET
+0 g
+0.45 G 0.6 w 36 161 770 18 re S
+36 161 110 18 re S
+BT /F1 8 Tf 42 166 Td (moby/buildkit) Tj ET
+146 161 55 18 re S
+BT /F1 8 Tf 152 166 Td (#4837) Tj ET
+201 161 260 18 re S
+BT /F1 8 Tf 207 166 Td (Support `RUN --mount=type=ssh` for Windows containers) Tj ET
+461 161 85 18 re S
+BT /F1 8 Tf 467 166 Td (Not set) Tj ET
+546 161 260 18 re S
+BT /F1 8 Tf 552 166 Td (https://github.com/moby/buildkit/issues/4837) Tj ET
+0 g
+0.45 G 0.6 w 36 123 770 38 re S
+36 123 110 38 re S
+BT /F1 8 Tf 42 148 Td (moby/buildkit) Tj ET
+146 123 55 38 re S
+BT /F1 8 Tf 152 148 Td (#5273) Tj ET
+201 123 260 38 re S
+BT /F1 8 Tf 207 148 Td (Windows docker container buildctl does not allow) Tj ET
+BT /F1 8 Tf 207 138 Td (mounting secrets. It fails mounting to linux tmpfs) Tj ET
+BT /F1 8 Tf 207 128 Td (location) Tj ET
+461 123 85 38 re S
+BT /F1 8 Tf 467 148 Td (Not set) Tj ET
+546 123 260 38 re S
+BT /F1 8 Tf 552 148 Td (https://github.com/moby/buildkit/issues/5273) Tj ET
+0 g
+0.45 G 0.6 w 36 95 770 28 re S
+36 95 110 28 re S
+BT /F1 8 Tf 42 110 Td (docker/for-win) Tj ET
+146 95 55 28 re S
+BT /F1 8 Tf 152 110 Td (#12944) Tj ET
+201 95 260 28 re S
+BT /F1 8 Tf 207 110 Td (High memory usage from VMMEM with docker desktop windows) Tj ET
+BT /F1 8 Tf 207 100 Td (x64 V4.12.0) Tj ET
+461 95 85 28 re S
+BT /F1 8 Tf 467 110 Td (328.0) Tj ET
+546 95 260 28 re S
+BT /F1 8 Tf 552 110 Td (https://github.com/docker/for-win/issues/12944) Tj ET
+0 g
+0.45 G 0.6 w 36 77 770 18 re S
+36 77 110 18 re S
+BT /F1 8 Tf 42 82 Td (docker/for-win) Tj ET
+146 77 55 18 re S
+BT /F1 8 Tf 152 82 Td (#14022) Tj ET
+201 77 260 18 re S
+BT /F1 8 Tf 207 82 Td (Docker Desktop - WSL update failed) Tj ET
+461 77 85 18 re S
+BT /F1 8 Tf 467 82 Td (298.0) Tj ET
+546 77 260 18 re S
+BT /F1 8 Tf 552 82 Td (https://github.com/docker/for-win/issues/14022) Tj ET
+0 g
+0.45 G 0.6 w 36 49 770 28 re S
+36 49 110 28 re S
+BT /F1 8 Tf 42 64 Td (docker/for-win) Tj ET
+146 49 55 28 re S
+BT /F1 8 Tf 152 64 Td (#10247) Tj ET
+201 49 260 28 re S
+BT /F1 8 Tf 207 64 Td ("load metadata for" during docker pull hangs for about) Tj ET
+BT /F1 8 Tf 207 54 Td (10-20 seconds) Tj ET
+461 49 85 28 re S
+BT /F1 8 Tf 467 64 Td (265.0) Tj ET
+546 49 260 28 re S
+BT /F1 8 Tf 552 64 Td (https://github.com/docker/for-win/issues/10247) Tj ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 595] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 8731 >>
+stream
+0 G
+0.88 g 36 541 770 18 re f
+0 g
+0.45 G 0.6 w 36 541 770 18 re S
+36 541 110 18 re S
+BT /F1 8 Tf 42 546 Td (Repository) Tj ET
+146 541 55 18 re S
+BT /F1 8 Tf 152 546 Td (Issue) Tj ET
+201 541 260 18 re S
+BT /F1 8 Tf 207 546 Td (Title) Tj ET
+461 541 85 18 re S
+BT /F1 8 Tf 467 546 Td (Priority score) Tj ET
+546 541 260 18 re S
+BT /F1 8 Tf 552 546 Td (URL) Tj ET
+0 g
+0.45 G 0.6 w 36 523 770 18 re S
+36 523 110 18 re S
+BT /F1 8 Tf 42 528 Td (docker/for-win) Tj ET
+146 523 55 18 re S
+BT /F1 8 Tf 152 528 Td (#12576) Tj ET
+201 523 260 18 re S
+BT /F1 8 Tf 207 528 Td (Endless "Docker desktop stopping") Tj ET
+461 523 85 18 re S
+BT /F1 8 Tf 467 528 Td (234.0) Tj ET
+546 523 260 18 re S
+BT /F1 8 Tf 552 528 Td (https://github.com/docker/for-win/issues/12576) Tj ET
+0 g
+0.45 G 0.6 w 36 495 770 28 re S
+36 495 110 28 re S
+BT /F1 8 Tf 42 510 Td (docker/for-win) Tj ET
+146 495 55 28 re S
+BT /F1 8 Tf 152 510 Td (#12968) Tj ET
+201 495 260 28 re S
+BT /F1 8 Tf 207 510 Td (WSL2-Vmmem with Docker desktop will use 100% CPU for no) Tj ET
+BT /F1 8 Tf 207 500 Td (reason after PC wakes up from sleep) Tj ET
+461 495 85 28 re S
+BT /F1 8 Tf 467 510 Td (227.0) Tj ET
+546 495 260 28 re S
+BT /F1 8 Tf 552 510 Td (https://github.com/docker/for-win/issues/12968) Tj ET
+0 g
+0.45 G 0.6 w 36 467 770 28 re S
+36 467 110 28 re S
+BT /F1 8 Tf 42 482 Td (docker/for-win) Tj ET
+146 467 55 28 re S
+BT /F1 8 Tf 152 482 Td (#14187) Tj ET
+201 467 260 28 re S
+BT /F1 8 Tf 207 482 Td (Docker Desktop update to 4.32.0: Running wsl distro) Tj ET
+BT /F1 8 Tf 207 472 Td (proxy in Ubuntu-22.04 distro: exit status 1) Tj ET
+461 467 85 28 re S
+BT /F1 8 Tf 467 482 Td (203.0) Tj ET
+546 467 260 28 re S
+BT /F1 8 Tf 552 482 Td (https://github.com/docker/for-win/issues/14187) Tj ET
+0 g
+0.45 G 0.6 w 36 439 770 28 re S
+36 439 110 28 re S
+BT /F1 8 Tf 42 454 Td (docker/for-win) Tj ET
+146 439 55 28 re S
+BT /F1 8 Tf 152 454 Td (#1018) Tj ET
+201 439 260 28 re S
+BT /F1 8 Tf 207 454 Td (Serial port unavailable under Windows even with) Tj ET
+BT /F1 8 Tf 207 444 Td (--privileged flag) Tj ET
+461 439 85 28 re S
+BT /F1 8 Tf 467 454 Td (202.0) Tj ET
+546 439 260 28 re S
+BT /F1 8 Tf 552 454 Td (https://github.com/docker/for-win/issues/1018) Tj ET
+0 g
+0.45 G 0.6 w 36 411 770 28 re S
+36 411 110 28 re S
+BT /F1 8 Tf 42 426 Td (docker/for-win) Tj ET
+146 411 55 28 re S
+BT /F1 8 Tf 152 426 Td (#13663) Tj ET
+201 411 260 28 re S
+BT /F1 8 Tf 207 426 Td (initializing Docker API Proxy: open) Tj ET
+BT /F1 8 Tf 207 416 Td (\\\\.\\pipe\\docker_engine: Access is denied.) Tj ET
+461 411 85 28 re S
+BT /F1 8 Tf 467 426 Td (183.0) Tj ET
+546 411 260 28 re S
+BT /F1 8 Tf 552 426 Td (https://github.com/docker/for-win/issues/13663) Tj ET
+0 g
+0.45 G 0.6 w 36 383 770 28 re S
+36 383 110 28 re S
+BT /F1 8 Tf 42 398 Td (docker/for-win) Tj ET
+146 383 55 28 re S
+BT /F1 8 Tf 152 398 Td (#13242) Tj ET
+201 383 260 28 re S
+BT /F1 8 Tf 207 398 Td (Docker desktop will exit\(0\) docker container immediately) Tj ET
+BT /F1 8 Tf 207 388 Td (after running.) Tj ET
+461 383 85 28 re S
+BT /F1 8 Tf 467 398 Td (177.0) Tj ET
+546 383 260 28 re S
+BT /F1 8 Tf 552 398 Td (https://github.com/docker/for-win/issues/13242) Tj ET
+0 g
+0.45 G 0.6 w 36 355 770 28 re S
+36 355 110 28 re S
+BT /F1 8 Tf 42 370 Td (kubernetes/enhancement) Tj ET
+BT /F1 8 Tf 42 360 Td (s) Tj ET
+146 355 55 28 re S
+BT /F1 8 Tf 152 370 Td (#2371) Tj ET
+201 355 260 28 re S
+BT /F1 8 Tf 207 370 Td (cAdvisor-less, CRI-full Container and Pod Stats) Tj ET
+461 355 85 28 re S
+BT /F1 8 Tf 467 370 Td (187.0) Tj ET
+546 355 260 28 re S
+BT /F1 8 Tf 552 370 Td (https://github.com/kubernetes/enhancements/issues/2371) Tj ET
+0 g
+0.45 G 0.6 w 36 327 770 28 re S
+36 327 110 28 re S
+BT /F1 8 Tf 42 342 Td (kubernetes/enhancement) Tj ET
+BT /F1 8 Tf 42 332 Td (s) Tj ET
+146 327 55 28 re S
+BT /F1 8 Tf 152 342 Td (#4216) Tj ET
+201 327 260 28 re S
+BT /F1 8 Tf 207 342 Td (Support image pull per runtime class) Tj ET
+461 327 85 28 re S
+BT /F1 8 Tf 467 342 Td (118.0) Tj ET
+546 327 260 28 re S
+BT /F1 8 Tf 552 342 Td (https://github.com/kubernetes/enhancements/issues/4216) Tj ET
+0 g
+0.45 G 0.6 w 36 299 770 28 re S
+36 299 110 28 re S
+BT /F1 8 Tf 42 314 Td (kubernetes/enhancement) Tj ET
+BT /F1 8 Tf 42 304 Td (s) Tj ET
+146 299 55 28 re S
+BT /F1 8 Tf 152 314 Td (#4885) Tj ET
+201 299 260 28 re S
+BT /F1 8 Tf 207 314 Td (Windows CPU and Memory Affinity) Tj ET
+461 299 85 28 re S
+BT /F1 8 Tf 467 314 Td (94.0) Tj ET
+546 299 260 28 re S
+BT /F1 8 Tf 552 314 Td (https://github.com/kubernetes/enhancements/issues/4885) Tj ET
+0 g
+0.45 G 0.6 w 36 271 770 28 re S
+36 271 110 28 re S
+BT /F1 8 Tf 42 286 Td (kubernetes/enhancement) Tj ET
+BT /F1 8 Tf 42 276 Td (s) Tj ET
+146 271 55 28 re S
+BT /F1 8 Tf 152 286 Td (#6303) Tj ET
+201 271 260 28 re S
+BT /F1 8 Tf 207 286 Td (KEP: In-place pod vertical scaling \(container resize\) on) Tj ET
+BT /F1 8 Tf 207 276 Td (Windows) Tj ET
+461 271 85 28 re S
+BT /F1 8 Tf 467 286 Td (16.0) Tj ET
+546 271 260 28 re S
+BT /F1 8 Tf 552 286 Td (https://github.com/kubernetes/enhancements/issues/6303) Tj ET
+0 g
+0.45 G 0.6 w 36 243 770 28 re S
+36 243 110 28 re S
+BT /F1 8 Tf 42 258 Td (containerd/containerd) Tj ET
+146 243 55 28 re S
+BT /F1 8 Tf 152 258 Td (#12888) Tj ET
+201 243 260 28 re S
+BT /F1 8 Tf 207 258 Td ([Feature] Native log rotation support for --log-file on) Tj ET
+BT /F1 8 Tf 207 248 Td (Windows service) Tj ET
+461 243 85 28 re S
+BT /F1 8 Tf 467 258 Td (9.0) Tj ET
+546 243 260 28 re S
+BT /F1 8 Tf 552 258 Td (https://github.com/containerd/containerd/issues/12888) Tj ET
+0 g
+0.45 G 0.6 w 36 215 770 28 re S
+36 215 110 28 re S
+BT /F1 8 Tf 42 230 Td (containerd/nerdctl) Tj ET
+146 215 55 28 re S
+BT /F1 8 Tf 152 230 Td (#4237) Tj ET
+201 215 260 28 re S
+BT /F1 8 Tf 207 230 Td ([LOGS]: on windows, logs do not show up / are extremely) Tj ET
+BT /F1 8 Tf 207 220 Td (slow?) Tj ET
+461 215 85 28 re S
+BT /F1 8 Tf 467 230 Td (14.0) Tj ET
+546 215 260 28 re S
+BT /F1 8 Tf 552 230 Td (https://github.com/containerd/nerdctl/issues/4237) Tj ET
+0 g
+0.45 G 0.6 w 36 177 770 38 re S
+36 177 110 38 re S
+BT /F1 8 Tf 42 202 Td (moby/moby) Tj ET
+146 177 55 38 re S
+BT /F1 8 Tf 152 202 Td (#53063) Tj ET
+201 177 260 38 re S
+BT /F1 8 Tf 207 202 Td (Windows: containerd image store can't use the CimFS) Tj ET
+BT /F1 8 Tf 207 192 Td (snapshotter ? dockerd doesn't configure the differ order) Tj ET
+BT /F1 8 Tf 207 182 Td (and offers no passthrough) Tj ET
+461 177 85 38 re S
+BT /F1 8 Tf 467 202 Td (20.0) Tj ET
+546 177 260 38 re S
+BT /F1 8 Tf 552 202 Td (https://github.com/moby/moby/issues/53063) Tj ET
+0 g
+0.45 G 0.6 w 36 149 770 28 re S
+36 149 110 28 re S
+BT /F1 8 Tf 42 164 Td (microsoft/Windows-) Tj ET
+BT /F1 8 Tf 42 154 Td (Containers) Tj ET
+146 149 55 28 re S
+BT /F1 8 Tf 152 164 Td (#257) Tj ET
+201 149 260 28 re S
+BT /F1 8 Tf 207 164 Td (Self build base OS images) Tj ET
+461 149 85 28 re S
+BT /F1 8 Tf 467 164 Td (211.0) Tj ET
+546 149 260 28 re S
+BT /F1 8 Tf 552 164 Td (https://github.com/microsoft/Windows-) Tj ET
+BT /F1 8 Tf 552 154 Td (Containers/issues/257) Tj ET
+0 g
+0.45 G 0.6 w 36 121 770 28 re S
+36 121 110 28 re S
+BT /F1 8 Tf 42 136 Td (microsoft/Windows-) Tj ET
+BT /F1 8 Tf 42 126 Td (Containers) Tj ET
+146 121 55 28 re S
+BT /F1 8 Tf 152 136 Td (#311) Tj ET
+201 121 260 28 re S
+BT /F1 8 Tf 207 136 Td (Windows Containers Observability) Tj ET
+461 121 85 28 re S
+BT /F1 8 Tf 467 136 Td (178.0) Tj ET
+546 121 260 28 re S
+BT /F1 8 Tf 552 136 Td (https://github.com/microsoft/Windows-) Tj ET
+BT /F1 8 Tf 552 126 Td (Containers/issues/311) Tj ET
+0 g
+0.45 G 0.6 w 36 93 770 28 re S
+36 93 110 28 re S
+BT /F1 8 Tf 42 108 Td (Azure/AKS) Tj ET
+146 93 55 28 re S
+BT /F1 8 Tf 152 108 Td (#5919) Tj ET
+201 93 260 28 re S
+BT /F1 8 Tf 207 108 Td ([BUG] PIS builds fail on private-registry Windows) Tj ET
+BT /F1 8 Tf 207 98 Td (images: 600s pis-image-cache timeout is too short) Tj ET
+461 93 85 28 re S
+BT /F1 8 Tf 467 108 Td (98.0) Tj ET
+546 93 260 28 re S
+BT /F1 8 Tf 552 108 Td (https://github.com/Azure/AKS/issues/5919) Tj ET
+0 g
+0.45 G 0.6 w 36 65 770 28 re S
+36 65 110 28 re S
+BT /F1 8 Tf 42 80 Td (kubernetes/enhancement) Tj ET
+BT /F1 8 Tf 42 70 Td (s) Tj ET
+146 65 55 28 re S
+BT /F1 8 Tf 152 80 Td (#2258) Tj ET
+201 65 260 28 re S
+BT /F1 8 Tf 207 80 Td (Node log query) Tj ET
+461 65 85 28 re S
+BT /F1 8 Tf 467 80 Td (172.0) Tj ET
+546 65 260 28 re S
+BT /F1 8 Tf 552 80 Td (https://github.com/kubernetes/enhancements/issues/2258) Tj ET
+0 g
+0.45 G 0.6 w 36 37 770 28 re S
+36 37 110 28 re S
+BT /F1 8 Tf 42 52 Td (kubernetes/enhancement) Tj ET
+BT /F1 8 Tf 42 42 Td (s) Tj ET
+146 37 55 28 re S
+BT /F1 8 Tf 152 52 Td (#4802) Tj ET
+201 37 260 28 re S
+BT /F1 8 Tf 207 52 Td (Windows Node Graceful Shutdown) Tj ET
+461 37 85 28 re S
+BT /F1 8 Tf 467 52 Td (129.0) Tj ET
+546 37 260 28 re S
+BT /F1 8 Tf 552 52 Td (https://github.com/kubernetes/enhancements/issues/4802) Tj ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 595] /Resources << /Font << /F1 3 0 R >> >> /Contents 9 0 R >>
+endobj
+9 0 obj
+<< /Length 10018 >>
+stream
+0 G
+0.88 g 36 541 770 18 re f
+0 g
+0.45 G 0.6 w 36 541 770 18 re S
+36 541 110 18 re S
+BT /F1 8 Tf 42 546 Td (Repository) Tj ET
+146 541 55 18 re S
+BT /F1 8 Tf 152 546 Td (Issue) Tj ET
+201 541 260 18 re S
+BT /F1 8 Tf 207 546 Td (Title) Tj ET
+461 541 85 18 re S
+BT /F1 8 Tf 467 546 Td (Priority score) Tj ET
+546 541 260 18 re S
+BT /F1 8 Tf 552 546 Td (URL) Tj ET
+0 g
+0.45 G 0.6 w 36 513 770 28 re S
+36 513 110 28 re S
+BT /F1 8 Tf 42 528 Td (containerd/containerd) Tj ET
+146 513 55 28 re S
+BT /F1 8 Tf 152 528 Td (#11366) Tj ET
+201 513 260 28 re S
+BT /F1 8 Tf 207 528 Td (Manifest Priority when pulling windows images with) Tj ET
+BT /F1 8 Tf 207 518 Td (Windows Server 2025) Tj ET
+461 513 85 28 re S
+BT /F1 8 Tf 467 528 Td (46.0) Tj ET
+546 513 260 28 re S
+BT /F1 8 Tf 552 528 Td (https://github.com/containerd/containerd/issues/11366) Tj ET
+0 g
+0.45 G 0.6 w 36 495 770 18 re S
+36 495 110 18 re S
+BT /F1 8 Tf 42 500 Td (containerd/containerd) Tj ET
+146 495 55 18 re S
+BT /F1 8 Tf 152 500 Td (#11903) Tj ET
+201 495 260 18 re S
+BT /F1 8 Tf 207 500 Td (windows support for oci volume sources) Tj ET
+461 495 85 18 re S
+BT /F1 8 Tf 467 500 Td (12.0) Tj ET
+546 495 260 18 re S
+BT /F1 8 Tf 552 500 Td (https://github.com/containerd/containerd/issues/11903) Tj ET
+0 g
+0.45 G 0.6 w 36 467 770 28 re S
+36 467 110 28 re S
+BT /F1 8 Tf 42 482 Td (containerd/containerd) Tj ET
+146 467 55 28 re S
+BT /F1 8 Tf 152 482 Td (#12225) Tj ET
+201 467 260 28 re S
+BT /F1 8 Tf 207 482 Td (Windows: Enable host process container to run with) Tj ET
+BT /F1 8 Tf 207 472 Td (hostnetwork=false) Tj ET
+461 467 85 28 re S
+BT /F1 8 Tf 467 482 Td (12.0) Tj ET
+546 467 260 28 re S
+BT /F1 8 Tf 552 482 Td (https://github.com/containerd/containerd/issues/12225) Tj ET
+0 g
+0.45 G 0.6 w 36 449 770 18 re S
+36 449 110 18 re S
+BT /F1 8 Tf 42 454 Td (containerd/nerdctl) Tj ET
+146 449 55 18 re S
+BT /F1 8 Tf 152 454 Td (#28) Tj ET
+201 449 260 18 re S
+BT /F1 8 Tf 207 454 Td (Windows support) Tj ET
+461 449 85 18 re S
+BT /F1 8 Tf 467 454 Td (57.0) Tj ET
+546 449 260 18 re S
+BT /F1 8 Tf 552 454 Td (https://github.com/containerd/nerdctl/issues/28) Tj ET
+0 g
+0.45 G 0.6 w 36 431 770 18 re S
+36 431 110 18 re S
+BT /F1 8 Tf 42 436 Td (containerd/nerdctl) Tj ET
+146 431 55 18 re S
+BT /F1 8 Tf 152 436 Td (#4005) Tj ET
+201 431 260 18 re S
+BT /F1 8 Tf 207 436 Td (windows 2025 container exec problems) Tj ET
+461 431 85 18 re S
+BT /F1 8 Tf 467 436 Td (22.0) Tj ET
+546 431 260 18 re S
+BT /F1 8 Tf 552 436 Td (https://github.com/containerd/nerdctl/issues/4005) Tj ET
+0 g
+0.45 G 0.6 w 36 403 770 28 re S
+36 403 110 28 re S
+BT /F1 8 Tf 42 418 Td (containerd/nerdctl) Tj ET
+146 403 55 28 re S
+BT /F1 8 Tf 152 418 Td (#4899) Tj ET
+201 403 260 28 re S
+BT /F1 8 Tf 207 418 Td (`nerdctl -d -t` detached containers immediately exit) Tj ET
+BT /F1 8 Tf 207 408 Td (with code 3221225786 \(0xc000013a\) on Windows) Tj ET
+461 403 85 28 re S
+BT /F1 8 Tf 467 418 Td (13.0) Tj ET
+546 403 260 28 re S
+BT /F1 8 Tf 552 418 Td (https://github.com/containerd/nerdctl/issues/4899) Tj ET
+0 g
+0.45 G 0.6 w 36 385 770 18 re S
+36 385 110 18 re S
+BT /F1 8 Tf 42 390 Td (moby/moby) Tj ET
+146 385 55 18 re S
+BT /F1 8 Tf 152 390 Td (#38387) Tj ET
+201 385 260 18 re S
+BT /F1 8 Tf 207 390 Td (Add CpuCount and CpuPercent To Build) Tj ET
+461 385 85 18 re S
+BT /F1 8 Tf 467 390 Td (42.0) Tj ET
+546 385 260 18 re S
+BT /F1 8 Tf 552 390 Td (https://github.com/moby/moby/issues/38387) Tj ET
+0 g
+0.45 G 0.6 w 36 357 770 28 re S
+36 357 110 28 re S
+BT /F1 8 Tf 42 372 Td (microsoft/Windows-) Tj ET
+BT /F1 8 Tf 42 362 Td (Containers) Tj ET
+146 357 55 28 re S
+BT /F1 8 Tf 152 372 Td (#34) Tj ET
+201 357 260 28 re S
+BT /F1 8 Tf 207 372 Td (As a Developer I want to be able to build Windows) Tj ET
+BT /F1 8 Tf 207 362 Td (Containers with BuildKit) Tj ET
+461 357 85 28 re S
+BT /F1 8 Tf 467 372 Td (281.0) Tj ET
+546 357 260 28 re S
+BT /F1 8 Tf 552 372 Td (https://github.com/microsoft/Windows-) Tj ET
+BT /F1 8 Tf 552 362 Td (Containers/issues/34) Tj ET
+0 g
+0.45 G 0.6 w 36 329 770 28 re S
+36 329 110 28 re S
+BT /F1 8 Tf 42 344 Td (microsoft/Windows-) Tj ET
+BT /F1 8 Tf 42 334 Td (Containers) Tj ET
+146 329 55 28 re S
+BT /F1 8 Tf 152 344 Td (#140) Tj ET
+201 329 260 28 re S
+BT /F1 8 Tf 207 344 Td (Can't start any two docker-compose environments after) Tj ET
+BT /F1 8 Tf 207 334 Td (update to Windows 20H2) Tj ET
+461 329 85 28 re S
+BT /F1 8 Tf 467 344 Td (250.0) Tj ET
+546 329 260 28 re S
+BT /F1 8 Tf 552 344 Td (https://github.com/microsoft/Windows-) Tj ET
+BT /F1 8 Tf 552 334 Td (Containers/issues/140) Tj ET
+0 g
+0.45 G 0.6 w 36 301 770 28 re S
+36 301 110 28 re S
+BT /F1 8 Tf 42 316 Td (microsoft/Windows-) Tj ET
+BT /F1 8 Tf 42 306 Td (Containers) Tj ET
+146 301 55 28 re S
+BT /F1 8 Tf 152 316 Td (#516) Tj ET
+201 301 260 28 re S
+BT /F1 8 Tf 207 316 Td (Container networking on Kubernetes broken after Server) Tj ET
+BT /F1 8 Tf 207 306 Td (2022 July 2024 / KB5040437 \(OS Build 20348.2582\) update) Tj ET
+461 301 85 28 re S
+BT /F1 8 Tf 467 316 Td (246.0) Tj ET
+546 301 260 28 re S
+BT /F1 8 Tf 552 316 Td (https://github.com/microsoft/Windows-) Tj ET
+BT /F1 8 Tf 552 306 Td (Containers/issues/516) Tj ET
+0 g
+0.45 G 0.6 w 36 273 770 28 re S
+36 273 110 28 re S
+BT /F1 8 Tf 42 288 Td (microsoft/Windows-) Tj ET
+BT /F1 8 Tf 42 278 Td (Containers) Tj ET
+146 273 55 28 re S
+BT /F1 8 Tf 152 288 Td (#390) Tj ET
+201 273 260 28 re S
+BT /F1 8 Tf 207 288 Td (Is it possible to create another user with the same) Tj ET
+BT /F1 8 Tf 207 278 Td (permissions as containeruser) Tj ET
+461 273 85 28 re S
+BT /F1 8 Tf 467 288 Td (194.0) Tj ET
+546 273 260 28 re S
+BT /F1 8 Tf 552 288 Td (https://github.com/microsoft/Windows-) Tj ET
+BT /F1 8 Tf 552 278 Td (Containers/issues/390) Tj ET
+0 g
+0.45 G 0.6 w 36 245 770 28 re S
+36 245 110 28 re S
+BT /F1 8 Tf 42 260 Td (microsoft/Windows-) Tj ET
+BT /F1 8 Tf 42 250 Td (Containers) Tj ET
+146 245 55 28 re S
+BT /F1 8 Tf 152 260 Td (#485) Tj ET
+201 245 260 28 re S
+BT /F1 8 Tf 207 260 Td (Requesting elaboration for HCN error 2151350293) Tj ET
+BT /F1 8 Tf 207 250 Td (\(0x803b0015\)) Tj ET
+461 245 85 28 re S
+BT /F1 8 Tf 467 260 Td (168.0) Tj ET
+546 245 260 28 re S
+BT /F1 8 Tf 552 260 Td (https://github.com/microsoft/Windows-) Tj ET
+BT /F1 8 Tf 552 250 Td (Containers/issues/485) Tj ET
+0 g
+0.45 G 0.6 w 36 217 770 28 re S
+36 217 110 28 re S
+BT /F1 8 Tf 42 232 Td (microsoft/Windows-) Tj ET
+BT /F1 8 Tf 42 222 Td (Containers) Tj ET
+146 217 55 28 re S
+BT /F1 8 Tf 152 232 Td (#177) Tj ET
+201 217 260 28 re S
+BT /F1 8 Tf 207 232 Td (Are throttle events logged?) Tj ET
+461 217 85 28 re S
+BT /F1 8 Tf 467 232 Td (167.0) Tj ET
+546 217 260 28 re S
+BT /F1 8 Tf 552 232 Td (https://github.com/microsoft/Windows-) Tj ET
+BT /F1 8 Tf 552 222 Td (Containers/issues/177) Tj ET
+0 g
+0.45 G 0.6 w 36 189 770 28 re S
+36 189 110 28 re S
+BT /F1 8 Tf 42 204 Td (microsoft/Windows-) Tj ET
+BT /F1 8 Tf 42 194 Td (Containers) Tj ET
+146 189 55 28 re S
+BT /F1 8 Tf 152 204 Td (#541) Tj ET
+201 189 260 28 re S
+BT /F1 8 Tf 207 204 Td (CCG Custom Plugin Returning Error \(The remote procedure) Tj ET
+BT /F1 8 Tf 207 194 Td (call failed.\)) Tj ET
+461 189 85 28 re S
+BT /F1 8 Tf 467 204 Td (166.0) Tj ET
+546 189 260 28 re S
+BT /F1 8 Tf 552 204 Td (https://github.com/microsoft/Windows-) Tj ET
+BT /F1 8 Tf 552 194 Td (Containers/issues/541) Tj ET
+0 g
+0.45 G 0.6 w 36 161 770 28 re S
+36 161 110 28 re S
+BT /F1 8 Tf 42 176 Td (microsoft/windows-) Tj ET
+BT /F1 8 Tf 42 166 Td (container-tools) Tj ET
+146 161 55 28 re S
+BT /F1 8 Tf 152 176 Td (#84) Tj ET
+201 161 260 28 re S
+BT /F1 8 Tf 207 176 Td (Log Monitor Feedback and Future Features) Tj ET
+461 161 85 28 re S
+BT /F1 8 Tf 467 176 Td (146.0) Tj ET
+546 161 260 28 re S
+BT /F1 8 Tf 552 176 Td (https://github.com/microsoft/windows-container-) Tj ET
+BT /F1 8 Tf 552 166 Td (tools/issues/84) Tj ET
+0 g
+0.45 G 0.6 w 36 133 770 28 re S
+36 133 110 28 re S
+BT /F1 8 Tf 42 148 Td (microsoft/windows-) Tj ET
+BT /F1 8 Tf 42 138 Td (container-tools) Tj ET
+146 133 55 28 re S
+BT /F1 8 Tf 152 148 Td (#125) Tj ET
+201 133 260 28 re S
+BT /F1 8 Tf 207 148 Td (Getting ERROR: Error in log file monitor. Failed to) Tj ET
+BT /F1 8 Tf 207 138 Td (query file information [BUG]) Tj ET
+461 133 85 28 re S
+BT /F1 8 Tf 467 148 Td (137.0) Tj ET
+546 133 260 28 re S
+BT /F1 8 Tf 552 148 Td (https://github.com/microsoft/windows-container-) Tj ET
+BT /F1 8 Tf 552 138 Td (tools/issues/125) Tj ET
+0 g
+0.45 G 0.6 w 36 105 770 28 re S
+36 105 110 28 re S
+BT /F1 8 Tf 42 120 Td (microsoft/windows-) Tj ET
+BT /F1 8 Tf 42 110 Td (container-tools) Tj ET
+146 105 55 28 re S
+BT /F1 8 Tf 152 120 Td (#169) Tj ET
+201 105 260 28 re S
+BT /F1 8 Tf 207 120 Td (STDOUT propagation is broken after termination signal) Tj ET
+461 105 85 28 re S
+BT /F1 8 Tf 467 120 Td (122.0) Tj ET
+546 105 260 28 re S
+BT /F1 8 Tf 552 120 Td (https://github.com/microsoft/windows-container-) Tj ET
+BT /F1 8 Tf 552 110 Td (tools/issues/169) Tj ET
+0 g
+0.45 G 0.6 w 36 77 770 28 re S
+36 77 110 28 re S
+BT /F1 8 Tf 42 92 Td (microsoft/windows-) Tj ET
+BT /F1 8 Tf 42 82 Td (container-tools) Tj ET
+146 77 55 28 re S
+BT /F1 8 Tf 152 92 Td (#216) Tj ET
+201 77 260 28 re S
+BT /F1 8 Tf 207 92 Td ([BUG] LogMonitor.exe being flagged for BA2008 for) Tj ET
+BT /F1 8 Tf 207 82 Td (missing ControlFlowGuard in BinSkim) Tj ET
+461 77 85 28 re S
+BT /F1 8 Tf 467 92 Td (115.0) Tj ET
+546 77 260 28 re S
+BT /F1 8 Tf 552 92 Td (https://github.com/microsoft/windows-container-) Tj ET
+BT /F1 8 Tf 552 82 Td (tools/issues/216) Tj ET
+0 g
+0.45 G 0.6 w 36 39 770 38 re S
+36 39 110 38 re S
+BT /F1 8 Tf 42 64 Td (microsoft/windows-) Tj ET
+BT /F1 8 Tf 42 54 Td (container-tools) Tj ET
+146 39 55 38 re S
+BT /F1 8 Tf 152 64 Td (#219) Tj ET
+201 39 260 38 re S
+BT /F1 8 Tf 207 64 Td ([BUG] LogMonitor keeps executing CreateFile Operations) Tj ET
+BT /F1 8 Tf 207 54 Td (for deleted files, skyrocketing the cost of running this) Tj ET
+BT /F1 8 Tf 207 44 Td (in AKS + Azure File Shares) Tj ET
+461 39 85 38 re S
+BT /F1 8 Tf 467 64 Td (115.0) Tj ET
+546 39 260 38 re S
+BT /F1 8 Tf 552 64 Td (https://github.com/microsoft/windows-container-) Tj ET
+BT /F1 8 Tf 552 54 Td (tools/issues/219) Tj ET
+endstream
+endobj
+10 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 595] /Resources << /Font << /F1 3 0 R >> >> /Contents 11 0 R >>
+endobj
+11 0 obj
+<< /Length 9232 >>
+stream
+0 G
+0.88 g 36 541 770 18 re f
+0 g
+0.45 G 0.6 w 36 541 770 18 re S
+36 541 110 18 re S
+BT /F1 8 Tf 42 546 Td (Repository) Tj ET
+146 541 55 18 re S
+BT /F1 8 Tf 152 546 Td (Issue) Tj ET
+201 541 260 18 re S
+BT /F1 8 Tf 207 546 Td (Title) Tj ET
+461 541 85 18 re S
+BT /F1 8 Tf 467 546 Td (Priority score) Tj ET
+546 541 260 18 re S
+BT /F1 8 Tf 552 546 Td (URL) Tj ET
+0 g
+0.45 G 0.6 w 36 523 770 18 re S
+36 523 110 18 re S
+BT /F1 8 Tf 42 528 Td (Azure/AKS) Tj ET
+146 523 55 18 re S
+BT /F1 8 Tf 152 528 Td (#4028) Tj ET
+201 523 260 18 re S
+BT /F1 8 Tf 207 528 Td ([BUG] Windows node reports less CPU usage than its pods) Tj ET
+461 523 85 18 re S
+BT /F1 8 Tf 467 528 Td (142.0) Tj ET
+546 523 260 18 re S
+BT /F1 8 Tf 552 528 Td (https://github.com/Azure/AKS/issues/4028) Tj ET
+0 g
+0.45 G 0.6 w 36 505 770 18 re S
+36 505 110 18 re S
+BT /F1 8 Tf 42 510 Td (kubernetes/kubernetes) Tj ET
+146 505 55 18 re S
+BT /F1 8 Tf 152 510 Td (#110665) Tj ET
+201 505 260 18 re S
+BT /F1 8 Tf 207 510 Td (kubectl.exe not code-signed) Tj ET
+461 505 85 18 re S
+BT /F1 8 Tf 467 510 Td (56.0) Tj ET
+546 505 260 18 re S
+BT /F1 8 Tf 552 510 Td (https://github.com/kubernetes/kubernetes/issues/110665) Tj ET
+0 g
+0.45 G 0.6 w 36 477 770 28 re S
+36 477 110 28 re S
+BT /F1 8 Tf 42 492 Td (kubernetes/kubernetes) Tj ET
+146 477 55 28 re S
+BT /F1 8 Tf 152 492 Td (#108886) Tj ET
+201 477 260 28 re S
+BT /F1 8 Tf 207 492 Td ([windows] - Update e2e tests that perform reboots to) Tj ET
+BT /F1 8 Tf 207 482 Td (leverage node.BootId) Tj ET
+461 477 85 28 re S
+BT /F1 8 Tf 467 492 Td (49.0) Tj ET
+546 477 260 28 re S
+BT /F1 8 Tf 552 492 Td (https://github.com/kubernetes/kubernetes/issues/108886) Tj ET
+0 g
+0.45 G 0.6 w 36 459 770 18 re S
+36 459 110 18 re S
+BT /F1 8 Tf 42 464 Td (kubernetes/kubernetes) Tj ET
+146 459 55 18 re S
+BT /F1 8 Tf 152 464 Td (#122202) Tj ET
+201 459 260 18 re S
+BT /F1 8 Tf 207 464 Td (LoadbalancerIPMode for kernelspace proxy mode) Tj ET
+461 459 85 18 re S
+BT /F1 8 Tf 467 464 Td (45.0) Tj ET
+546 459 260 18 re S
+BT /F1 8 Tf 552 464 Td (https://github.com/kubernetes/kubernetes/issues/122202) Tj ET
+0 g
+0.45 G 0.6 w 36 431 770 28 re S
+36 431 110 28 re S
+BT /F1 8 Tf 42 446 Td (kubernetes/kubernetes) Tj ET
+146 431 55 28 re S
+BT /F1 8 Tf 152 446 Td (#101985) Tj ET
+201 431 260 28 re S
+BT /F1 8 Tf 207 446 Td (kubectl cp command fails when passing full Windows path) Tj ET
+BT /F1 8 Tf 207 436 Td (such as c:\\Temp\\foobar.txt) Tj ET
+461 431 85 28 re S
+BT /F1 8 Tf 467 446 Td (42.0) Tj ET
+546 431 260 28 re S
+BT /F1 8 Tf 552 446 Td (https://github.com/kubernetes/kubernetes/issues/101985) Tj ET
+0 g
+0.45 G 0.6 w 36 403 770 28 re S
+36 403 110 28 re S
+BT /F1 8 Tf 42 418 Td (kubernetes/kubernetes) Tj ET
+146 403 55 28 re S
+BT /F1 8 Tf 152 418 Td (#123014) Tj ET
+201 403 260 28 re S
+BT /F1 8 Tf 207 418 Td (Establish contract between kube-proxy on Windows and) Tj ET
+BT /F1 8 Tf 207 408 Td (CNIs for handling source VIPs in overlay networking mode) Tj ET
+461 403 85 28 re S
+BT /F1 8 Tf 467 418 Td (31.0) Tj ET
+546 403 260 28 re S
+BT /F1 8 Tf 552 418 Td (https://github.com/kubernetes/kubernetes/issues/123014) Tj ET
+0 g
+0.45 G 0.6 w 36 375 770 28 re S
+36 375 110 28 re S
+BT /F1 8 Tf 42 390 Td (kubernetes/kubernetes) Tj ET
+146 375 55 28 re S
+BT /F1 8 Tf 152 390 Td (#141841) Tj ET
+201 375 260 28 re S
+BT /F1 8 Tf 207 390 Td (Dynamic Resource Allocation \(DeviceClass/Device\) is not) Tj ET
+BT /F1 8 Tf 207 380 Td (supported on Windows nodes) Tj ET
+461 375 85 28 re S
+BT /F1 8 Tf 467 390 Td (34.0) Tj ET
+546 375 260 28 re S
+BT /F1 8 Tf 552 390 Td (https://github.com/kubernetes/kubernetes/issues/141841) Tj ET
+0 g
+0.45 G 0.6 w 36 357 770 18 re S
+36 357 110 18 re S
+BT /F1 8 Tf 42 362 Td (kubernetes/community) Tj ET
+146 357 55 18 re S
+BT /F1 8 Tf 152 362 Td (#9043) Tj ET
+201 357 260 18 re S
+BT /F1 8 Tf 207 362 Td (<SIG/Windows>: Leadership Change) Tj ET
+461 357 85 18 re S
+BT /F1 8 Tf 467 362 Td (20.0) Tj ET
+546 357 260 18 re S
+BT /F1 8 Tf 552 362 Td (https://github.com/kubernetes/community/issues/9043) Tj ET
+0 g
+0.45 G 0.6 w 36 339 770 18 re S
+36 339 110 18 re S
+BT /F1 8 Tf 42 344 Td (moby/buildkit) Tj ET
+146 339 55 18 re S
+BT /F1 8 Tf 152 344 Td (#4725) Tj ET
+201 339 260 18 re S
+BT /F1 8 Tf 207 344 Td (Error during build using corporate proxy) Tj ET
+461 339 85 18 re S
+BT /F1 8 Tf 467 344 Td (51.0) Tj ET
+546 339 260 18 re S
+BT /F1 8 Tf 552 344 Td (https://github.com/moby/buildkit/issues/4725) Tj ET
+0 g
+0.45 G 0.6 w 36 301 770 38 re S
+36 301 110 38 re S
+BT /F1 8 Tf 42 326 Td (moby/buildkit) Tj ET
+146 301 55 38 re S
+BT /F1 8 Tf 152 326 Td (#4826) Tj ET
+201 301 260 38 re S
+BT /F1 8 Tf 207 326 Td (Error building windows container inside a windows) Tj ET
+BT /F1 8 Tf 207 316 Td (container; failed to prepare: failed to create scratch) Tj ET
+BT /F1 8 Tf 207 306 Td (layer: no parent layers present: unknown) Tj ET
+461 301 85 38 re S
+BT /F1 8 Tf 467 326 Td (48.0) Tj ET
+546 301 260 38 re S
+BT /F1 8 Tf 552 326 Td (https://github.com/moby/buildkit/issues/4826) Tj ET
+0 g
+0.45 G 0.6 w 36 273 770 28 re S
+36 273 110 28 re S
+BT /F1 8 Tf 42 288 Td (moby/buildkit) Tj ET
+146 273 55 28 re S
+BT /F1 8 Tf 152 288 Td (#5668) Tj ET
+201 273 260 28 re S
+BT /F1 8 Tf 207 288 Td (Buildkit on Windows Server 2019 Unable to Reuse) Tj ET
+BT /F1 8 Tf 207 278 Td (Namespaces / Endpoints) Tj ET
+461 273 85 28 re S
+BT /F1 8 Tf 467 288 Td (31.0) Tj ET
+546 273 260 28 re S
+BT /F1 8 Tf 552 288 Td (https://github.com/moby/buildkit/issues/5668) Tj ET
+0 g
+0.45 G 0.6 w 36 255 770 18 re S
+36 255 110 18 re S
+BT /F1 8 Tf 42 260 Td (moby/buildkit) Tj ET
+146 255 55 18 re S
+BT /F1 8 Tf 152 260 Td (#4836) Tj ET
+201 255 260 18 re S
+BT /F1 8 Tf 207 260 Td (wcow: support OCI-worker for Windows) Tj ET
+461 255 85 18 re S
+BT /F1 8 Tf 467 260 Td (23.0) Tj ET
+546 255 260 18 re S
+BT /F1 8 Tf 552 260 Td (https://github.com/moby/buildkit/issues/4836) Tj ET
+0 g
+0.45 G 0.6 w 36 237 770 18 re S
+36 237 110 18 re S
+BT /F1 8 Tf 42 242 Td (moby/buildkit) Tj ET
+146 237 55 18 re S
+BT /F1 8 Tf 152 242 Td (#4892) Tj ET
+201 237 260 18 re S
+BT /F1 8 Tf 207 242 Td (WCOW fails to load custom frontend) Tj ET
+461 237 85 18 re S
+BT /F1 8 Tf 467 242 Td (18.0) Tj ET
+546 237 260 18 re S
+BT /F1 8 Tf 552 242 Td (https://github.com/moby/buildkit/issues/4892) Tj ET
+0 g
+0.45 G 0.6 w 36 219 770 18 re S
+36 219 110 18 re S
+BT /F1 8 Tf 42 224 Td (moby/buildkit) Tj ET
+146 219 55 18 re S
+BT /F1 8 Tf 152 224 Td (#6009) Tj ET
+201 219 260 18 re S
+BT /F1 8 Tf 207 224 Td (Publish Windows buildx images) Tj ET
+461 219 85 18 re S
+BT /F1 8 Tf 467 224 Td (14.0) Tj ET
+546 219 260 18 re S
+BT /F1 8 Tf 552 224 Td (https://github.com/moby/buildkit/issues/6009) Tj ET
+0 g
+0.45 G 0.6 w 36 201 770 18 re S
+36 201 110 18 re S
+BT /F1 8 Tf 42 206 Td (Azure/AKS) Tj ET
+146 201 55 18 re S
+BT /F1 8 Tf 152 206 Td (#4068) Tj ET
+201 201 260 18 re S
+BT /F1 8 Tf 207 206 Td ([Feature] Memory-based pod eviction for Windows) Tj ET
+461 201 85 18 re S
+BT /F1 8 Tf 467 206 Td (94.0) Tj ET
+546 201 260 18 re S
+BT /F1 8 Tf 552 206 Td (https://github.com/Azure/AKS/issues/4068) Tj ET
+0 g
+0.45 G 0.6 w 36 173 770 28 re S
+36 173 110 28 re S
+BT /F1 8 Tf 42 188 Td (Azure/AKS) Tj ET
+146 173 55 28 re S
+BT /F1 8 Tf 152 188 Td (#5263) Tj ET
+201 173 260 28 re S
+BT /F1 8 Tf 207 188 Td ([Feature] Pod Startup Throttling After Reboot /) Tj ET
+BT /F1 8 Tf 207 178 Td (Thundering Herd Issue) Tj ET
+461 173 85 28 re S
+BT /F1 8 Tf 467 188 Td (90.0) Tj ET
+546 173 260 28 re S
+BT /F1 8 Tf 552 188 Td (https://github.com/Azure/AKS/issues/5263) Tj ET
+0 g
+0.45 G 0.6 w 36 135 770 38 re S
+36 135 110 38 re S
+BT /F1 8 Tf 42 160 Td (msftjonw-labs/windows-) Tj ET
+BT /F1 8 Tf 42 150 Td (container-issue-) Tj ET
+BT /F1 8 Tf 42 140 Td (tracker) Tj ET
+146 135 55 38 re S
+BT /F1 8 Tf 152 160 Td (#33) Tj ET
+201 135 260 38 re S
+BT /F1 8 Tf 207 160 Td ([hypothesis-research-state] Weekly research lifecycle) Tj ET
+461 135 85 38 re S
+BT /F1 8 Tf 467 160 Td (Not set) Tj ET
+546 135 260 38 re S
+BT /F1 8 Tf 552 160 Td (https://github.com/msftjonw-labs/windows-container-) Tj ET
+BT /F1 8 Tf 552 150 Td (issue-tracker/issues/33) Tj ET
+0 g
+0.45 G 0.6 w 36 97 770 38 re S
+36 97 110 38 re S
+BT /F1 8 Tf 42 122 Td (kubernetes/kubernetes) Tj ET
+146 97 55 38 re S
+BT /F1 8 Tf 152 122 Td (#140187) Tj ET
+201 97 260 38 re S
+BT /F1 8 Tf 207 122 Td ([Failing Test]) Tj ET
+BT /F1 8 Tf 207 112 Td (RestartAllContainers/ContainerRestartRules e2e time out) Tj ET
+BT /F1 8 Tf 207 102 Td (on Hyper-V-isolated Windows \(capz-windows-master-hyperv\)) Tj ET
+461 97 85 38 re S
+BT /F1 8 Tf 467 122 Td (30.0) Tj ET
+546 97 260 38 re S
+BT /F1 8 Tf 552 122 Td (https://github.com/kubernetes/kubernetes/issues/140187) Tj ET
+0 g
+0.45 G 0.6 w 36 49 770 48 re S
+36 49 110 48 re S
+BT /F1 8 Tf 42 84 Td (microsoft/Windows-) Tj ET
+BT /F1 8 Tf 42 74 Td (Containers) Tj ET
+146 49 55 48 re S
+BT /F1 8 Tf 152 84 Td (#502) Tj ET
+201 49 260 48 re S
+BT /F1 8 Tf 207 84 Td (mcr.microsoft.com/windows/servercore:10.0.20348.2340) Tj ET
+BT /F1 8 Tf 207 74 Td (BSODs Windows 2022 10.0.20348.1726,) Tj ET
+BT /F1 8 Tf 207 64 Td (mcr.microsoft.com/windows/servercore:10.0.20348.1970) Tj ET
+BT /F1 8 Tf 207 54 Td (does not) Tj ET
+461 49 85 48 re S
+BT /F1 8 Tf 467 84 Td (164.0) Tj ET
+546 49 260 48 re S
+BT /F1 8 Tf 552 84 Td (https://github.com/microsoft/Windows-) Tj ET
+BT /F1 8 Tf 552 74 Td (Containers/issues/502) Tj ET
+endstream
+endobj
+12 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 595] /Resources << /Font << /F1 3 0 R >> >> /Contents 13 0 R >>
+endobj
+13 0 obj
+<< /Length 5286 >>
+stream
+0 G
+0.88 g 36 541 770 18 re f
+0 g
+0.45 G 0.6 w 36 541 770 18 re S
+36 541 110 18 re S
+BT /F1 8 Tf 42 546 Td (Repository) Tj ET
+146 541 55 18 re S
+BT /F1 8 Tf 152 546 Td (Issue) Tj ET
+201 541 260 18 re S
+BT /F1 8 Tf 207 546 Td (Title) Tj ET
+461 541 85 18 re S
+BT /F1 8 Tf 467 546 Td (Priority score) Tj ET
+546 541 260 18 re S
+BT /F1 8 Tf 552 546 Td (URL) Tj ET
+0 g
+0.45 G 0.6 w 36 513 770 28 re S
+36 513 110 28 re S
+BT /F1 8 Tf 42 528 Td (microsoft/windows-) Tj ET
+BT /F1 8 Tf 42 518 Td (container-tools) Tj ET
+146 513 55 28 re S
+BT /F1 8 Tf 152 528 Td (#238) Tj ET
+201 513 260 28 re S
+BT /F1 8 Tf 207 528 Td ([BUG] Native test run crashes with 0xC0000005 after) Tj ET
+BT /F1 8 Tf 207 518 Td (TestStartAtOldestRecord passes) Tj ET
+461 513 85 28 re S
+BT /F1 8 Tf 467 528 Td (115.0) Tj ET
+546 513 260 28 re S
+BT /F1 8 Tf 552 528 Td (https://github.com/microsoft/windows-container-) Tj ET
+BT /F1 8 Tf 552 518 Td (tools/issues/238) Tj ET
+0 g
+0.45 G 0.6 w 36 475 770 38 re S
+36 475 110 38 re S
+BT /F1 8 Tf 42 500 Td (msftjonw-labs/windows-) Tj ET
+BT /F1 8 Tf 42 490 Td (container-issue-) Tj ET
+BT /F1 8 Tf 42 480 Td (tracker) Tj ET
+146 475 55 38 re S
+BT /F1 8 Tf 152 500 Td (#36) Tj ET
+201 475 260 38 re S
+BT /F1 8 Tf 207 500 Td ([weekly-digest] Windows Container Issue Priorities -) Tj ET
+BT /F1 8 Tf 207 490 Td (2026-10-26 - Run 40404611450) Tj ET
+461 475 85 38 re S
+BT /F1 8 Tf 467 500 Td (Not set) Tj ET
+546 475 260 38 re S
+BT /F1 8 Tf 552 500 Td (https://github.com/msftjonw-labs/windows-container-) Tj ET
+BT /F1 8 Tf 552 490 Td (issue-tracker/issues/36) Tj ET
+0 g
+0.45 G 0.6 w 36 437 770 38 re S
+36 437 110 38 re S
+BT /F1 8 Tf 42 462 Td (msftjonw-labs/windows-) Tj ET
+BT /F1 8 Tf 42 452 Td (container-issue-) Tj ET
+BT /F1 8 Tf 42 442 Td (tracker) Tj ET
+146 437 55 38 re S
+BT /F1 8 Tf 152 462 Td (#41) Tj ET
+201 437 260 38 re S
+BT /F1 8 Tf 207 462 Td ([weekly-digest] Windows Container Issue Priorities -) Tj ET
+BT /F1 8 Tf 207 452 Td (2026-11-02 - Run 41548257217) Tj ET
+461 437 85 38 re S
+BT /F1 8 Tf 467 462 Td (Not set) Tj ET
+546 437 260 38 re S
+BT /F1 8 Tf 552 462 Td (https://github.com/msftjonw-labs/windows-container-) Tj ET
+BT /F1 8 Tf 552 452 Td (issue-tracker/issues/41) Tj ET
+0 g
+0.45 G 0.6 w 36 409 770 28 re S
+36 409 110 28 re S
+BT /F1 8 Tf 42 424 Td (kubernetes/kubernetes) Tj ET
+146 409 55 28 re S
+BT /F1 8 Tf 152 424 Td (#134253) Tj ET
+201 409 260 28 re S
+BT /F1 8 Tf 207 424 Td ([Windows] usageNanoCores reported by /stats/summary) Tj ET
+BT /F1 8 Tf 207 414 Td (occasionally higher than number of vCPUs available) Tj ET
+461 409 85 28 re S
+BT /F1 8 Tf 467 424 Td (28.0) Tj ET
+546 409 260 28 re S
+BT /F1 8 Tf 552 424 Td (https://github.com/kubernetes/kubernetes/issues/134253) Tj ET
+0 g
+0.45 G 0.6 w 36 371 770 38 re S
+36 371 110 38 re S
+BT /F1 8 Tf 42 396 Td (msftjonw-labs/windows-) Tj ET
+BT /F1 8 Tf 42 386 Td (container-issue-) Tj ET
+BT /F1 8 Tf 42 376 Td (tracker) Tj ET
+146 371 55 38 re S
+BT /F1 8 Tf 152 396 Td (#43) Tj ET
+201 371 260 38 re S
+BT /F1 8 Tf 207 396 Td ([weekly-digest] Windows Container Issue Priorities -) Tj ET
+BT /F1 8 Tf 207 386 Td (2026-11-10 - Run 42729402704) Tj ET
+461 371 85 38 re S
+BT /F1 8 Tf 467 396 Td (Not set) Tj ET
+546 371 260 38 re S
+BT /F1 8 Tf 552 396 Td (https://github.com/msftjonw-labs/windows-container-) Tj ET
+BT /F1 8 Tf 552 386 Td (issue-tracker/issues/43) Tj ET
+0 g
+0.45 G 0.6 w 36 343 770 28 re S
+36 343 110 28 re S
+BT /F1 8 Tf 42 358 Td (kubernetes/kubernetes) Tj ET
+146 343 55 28 re S
+BT /F1 8 Tf 152 358 Td (#133502) Tj ET
+201 343 260 28 re S
+BT /F1 8 Tf 207 358 Td (Refactoring Windows Kubeproxy Code to optmize the lines) Tj ET
+BT /F1 8 Tf 207 348 Td (of code in function syncProxyRules) Tj ET
+461 343 85 28 re S
+BT /F1 8 Tf 467 358 Td (24.0) Tj ET
+546 343 260 28 re S
+BT /F1 8 Tf 552 358 Td (https://github.com/kubernetes/kubernetes/issues/133502) Tj ET
+0 g
+0.45 G 0.6 w 36 295 770 48 re S
+36 295 110 48 re S
+BT /F1 8 Tf 42 330 Td (kubernetes/kubernetes) Tj ET
+146 295 55 48 re S
+BT /F1 8 Tf 152 330 Td (#141760) Tj ET
+201 295 260 48 re S
+BT /F1 8 Tf 207 330 Td ([InPlacePodLevelResourcesVerticalScaling] kubelet: "not) Tj ET
+BT /F1 8 Tf 207 320 Td (implemented" cgroup errors on Windows nodes during pod) Tj ET
+BT /F1 8 Tf 207 310 Td (status sync & logging typo in) Tj ET
+BT /F1 8 Tf 207 300 Td (`convertToAPIPodLevelResourcesStatus`) Tj ET
+461 295 85 48 re S
+BT /F1 8 Tf 467 330 Td (23.0) Tj ET
+546 295 260 48 re S
+BT /F1 8 Tf 552 330 Td (https://github.com/kubernetes/kubernetes/issues/141760) Tj ET
+0 g
+0.45 G 0.6 w 36 277 770 18 re S
+36 277 110 18 re S
+BT /F1 8 Tf 42 282 Td (docker/for-win) Tj ET
+146 277 55 18 re S
+BT /F1 8 Tf 152 282 Td (#8861) Tj ET
+201 277 260 18 re S
+BT /F1 8 Tf 207 282 Td (Docker network connection time outs to host over time) Tj ET
+461 277 85 18 re S
+BT /F1 8 Tf 467 282 Td (198.0) Tj ET
+546 277 260 18 re S
+BT /F1 8 Tf 552 282 Td (https://github.com/docker/for-win/issues/8861) Tj ET
+0 g
+0.45 G 0.6 w 36 259 770 18 re S
+36 259 110 18 re S
+BT /F1 8 Tf 42 264 Td (Azure/AKS) Tj ET
+146 259 55 18 re S
+BT /F1 8 Tf 152 264 Td (#5203) Tj ET
+201 259 260 18 re S
+BT /F1 8 Tf 207 264 Td ([Feature] Windows support in Node Auto Provisioning) Tj ET
+461 259 85 18 re S
+BT /F1 8 Tf 467 264 Td (85.0) Tj ET
+546 259 260 18 re S
+BT /F1 8 Tf 552 264 Td (https://github.com/Azure/AKS/issues/5203) Tj ET
+endstream
+endobj
+xref
+0 14
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000147 00000 n 
+0000000217 00000 n 
+0000000343 00000 n 
+0000008286 00000 n 
+0000008412 00000 n 
+0000017195 00000 n 
+0000017321 00000 n 
+0000027392 00000 n 
+0000027520 00000 n 
+0000036805 00000 n 
+0000036933 00000 n 
+trailer
+<< /Size 14 /Root 1 0 R >>
+startxref
+42272
+%%EOF
